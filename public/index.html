@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Alpha the Hub">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Alpha the Hub</title>
+  <style>
+    :root {
+      --bg:#f4f4f5; --white:#fff; --black:#000; --ink:#09090b; --ink2:#3f3f46;
+      --ink3:#71717a; --ink4:#a1a1aa; --line:#e4e4e7; --line2:#d4d4d8;
+      --amber:#d97706; --amber-bg:#fef3c7; --amber-border:#fcd34d;
+      --blue:#2563eb; --blue-bg:#dbeafe; --blue-border:#93c5fd;
+      --green:#16a34a; --green-bg:#dcfce7; --green-border:#86efac;
+      --red:#dc2626; --red-bg:#fee2e2; --red-border:#fca5a5;
+      --gray:#6b7280; --gray-bg:#f3f4f6; --gray-border:#d1d5db;
+      --r:16px; --shadow:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%}
+    body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+    /* HEADER */
+    .header{background:var(--black);padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .logo{display:flex;align-items:center;gap:10px}
+    /* To use your own logo: replace the .logo-mark background with: background:url('/your-logo.png') center/cover */
+    .logo-mark{width:34px;height:34px;border-radius:9px;background:var(--white);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:var(--black);letter-spacing:-1px;flex-shrink:0}
+    .logo-text{display:flex;flex-direction:column;line-height:1.2}
+    .logo-name{font-size:15px;font-weight:700;color:#fff}
+    .logo-tag{font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.8px;text-transform:uppercase}
+    .bot-pill{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07)}
+    .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;animation:blink 2s infinite;flex-shrink:0}
+    .dot.off{background:rgba(255,255,255,.3);box-shadow:none;animation:none}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+    .bot-label{font-size:11px;color:rgba(255,255,255,.5);font-weight:500}
+    /* STATS */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);margin:12px 16px;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+    .stat{background:var(--white);padding:12px 6px;text-align:center}
+    .stat-n{font-size:22px;font-weight:800;color:var(--ink);line-height:1}
+    .stat-l{font-size:10px;color:var(--ink3);margin-top:3px;font-weight:500;line-height:1.3}
+    /* SEARCH */
+    .search-wrap{padding:0 16px 8px}
+    .search-box{display:flex;align-items:center;gap:8px;background:var(--white);border:1.5px solid var(--line);border-radius:12px;padding:0 12px;height:40px}
+    .search-box input{flex:1;border:none;outline:none;font-size:14px;font-family:'Inter',sans-serif;color:var(--ink);background:transparent}
+    .search-box input::placeholder{color:var(--ink4)}
+    .search-icon{color:var(--ink4);font-size:15px;flex-shrink:0}
+    /* FILTERS */
+    .filter-wrap{padding:0 16px 10px;overflow-x:auto;scrollbar-width:none;display:flex;gap:6px}
+    .filter-wrap::-webkit-scrollbar{display:none}
+    .chip{flex-shrink:0;padding:7px 14px;border-radius:99px;border:1.5px solid var(--line);background:var(--white);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:all .12s}
+    .chip.on{background:var(--black);color:#fff;border-color:var(--black)}
+    /* MONTH HEADER */
+    .month-hd{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px}
+    .month-hd::after{content:'';flex:1;height:1px;background:var(--line)}
+    /* CARD */
+    .ccard{background:var(--white);border-radius:var(--r);margin:0 16px 8px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)}
+    .ccard-head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none}
+    .cbadge{flex-shrink:0;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap}
+    .ba{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+    .bb{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
+    .bg{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+    .br{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+    .bx{background:var(--gray-bg);color:var(--gray);border:1px solid var(--gray-border)}
+    .chead-info{flex:1;min-width:0}
+    .cname{font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cmeta{font-size:12px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chead-right{display:flex;align-items:center;gap:2px;flex-shrink:0}
+    .btn-icon{background:none;border:none;color:var(--ink4);cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:16px;transition:all .12s}
+    .btn-icon:hover{background:var(--gray-bg)}
+    .btn-icon.del:hover,.btn-icon.del:active{color:var(--red);background:var(--red-bg)}
+    /* CARD BODY */
+    .ccard-body{display:none;border-top:1px solid var(--line);padding:12px 14px 14px}
+    .ccard.open .ccard-body{display:block}
+    .expand-icon{transition:transform .2s}
+    .ccard.open .expand-icon{transform:rotate(180deg)}
+    .cinfo{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+    .ci{font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:8px}
+    .ci a{color:var(--blue);text-decoration:none;font-weight:500}
+    .ci-icon{font-size:14px;flex-shrink:0;width:18px;text-align:center}
+    .cnote-box{background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:12px;border:1px solid var(--line)}
+    .cnote-lbl{font-size:10px;font-weight:700;color:var(--ink4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+    .cnote-txt{font-size:13px;color:var(--ink2);font-style:italic}
+    /* STATUS TOGGLE */
+    .stog-lbl{font-size:10px;font-weight:700;color:var(--ink4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+    .stog-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+    .stog{padding:6px 12px;border-radius:99px;border:1.5px solid var(--line);background:var(--white);color:var(--ink3);font-size:12px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .12s}
+    .stog.s-new.active{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+    .stog.s-trial.active{background:var(--blue-bg);color:var(--blue);border-color:var(--blue)}
+    .stog.s-done.active{background:var(--green-bg);color:var(--green);border-color:var(--green)}
+    .stog.s-issues.active{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+    .stog.s-notneeded.active{background:var(--gray-bg);color:var(--gray);border-color:var(--gray-border)}
+    .btn-followup{width:100%;padding:10px;border-radius:10px;background:var(--black);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+    .btn-followup:active{opacity:.8}
+    /* EMPTY */
+    .empty{text-align:center;padding:48px 20px;color:var(--ink3)}
+    .empty-icon{font-size:36px;margin-bottom:10px}
+    .empty-msg{font-size:14px;font-weight:500}
+    /* FAB */
+    .fab{position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:99px;background:var(--black);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:50;transition:transform .15s}
+    .fab:active{transform:scale(.92)}
+    /* MODAL */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:200;display:none;align-items:flex-end;justify-content:center}
+    .overlay.open{display:flex}
+    .msheet{background:var(--white);border-radius:24px 24px 0 0;width:100%;max-width:600px;padding-bottom:env(safe-area-inset-bottom,0);max-height:90vh;overflow-y:auto}
+    .mhandle{width:36px;height:4px;background:var(--line);border-radius:99px;margin:12px auto 4px}
+    .mtitle{font-size:18px;font-weight:700;padding:8px 20px 16px}
+    .mfield{padding:0 20px 14px}
+    .mfield label{display:block;font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+    .mfield input,.mfield select{width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);font-size:15px;font-family:'Inter',sans-serif;color:var(--ink);background:var(--white);outline:none;-webkit-appearance:none}
+    .mfield input:focus,.mfield select:focus{border-color:var(--black)}
+    .mbtns{display:flex;gap:10px;padding:4px 20px 24px}
+    .mbtn-cancel{flex:1;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--white);color:var(--ink2);font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+    .mbtn-main{flex:2;padding:14px;border-radius:14px;border:none;background:var(--black);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+    .mbtn-main:disabled{opacity:.5}
+    .mbtns-confirm{display:none;flex-direction:column;gap:10px;padding:0 20px 24px}
+    .confirm-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 14px;font-size:13px;font-weight:500;color:#92400e}
+    .confirm-btns{display:flex;gap:10px}
+    .confirm-btns .mbtn-cancel,.confirm-btns .mbtn-main{flex:1}
+    /* DELETE CONFIRM SHEET */
+    .del-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:300;display:none;align-items:flex-end;justify-content:center}
+    .del-overlay.open{display:flex}
+    .del-sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px 20px calc(env(safe-area-inset-bottom,0) + 24px)}
+    .del-title{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:5px}
+    .del-sub{font-size:14px;color:var(--ink3);margin-bottom:20px;line-height:1.5}
+    .del-btns{display:flex;gap:10px}
+    .btn-del-cancel{flex:1;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--white);color:var(--ink2);font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+    .btn-del-confirm{flex:1;padding:14px;border-radius:14px;border:none;background:var(--red);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+    /* TOAST */
+    .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);opacity:0;background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;font-weight:500;white-space:nowrap;z-index:400;transition:all .2s;pointer-events:none;max-width:90vw;text-align:center}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* WRAP */
+    .wrap{max-width:600px;margin:0 auto;padding:0 0 80px}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <!-- Replace .logo-mark with <img class="logo-mark" src="/your-logo.png"> once you have the logo -->
+    <div class="logo-mark">A</div>
+    <div class="logo-text">
+      <span class="logo-name">Alpha the Hub</span>
+      <span class="logo-tag">Manpower CRM</span>
+    </div>
+  </div>
+  <div class="bot-pill">
+    <div class="dot off" id="bot-dot"></div>
+    <span class="bot-label" id="bot-label">Connecting</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><div class="stat-n" id="s-total">–</div><div class="stat-l">Active</div></div>
+    <div class="stat"><div class="stat-n" id="s-new">–</div><div class="stat-l">New</div></div>
+    <div class="stat"><div class="stat-n" id="s-trial">–</div><div class="stat-l">Trial</div></div>
+    <div class="stat"><div class="stat-n" id="s-done">–</div><div class="stat-l">Completed</div></div>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input id="srch" type="search" placeholder="Search clients, phone, role…" oninput="renderClients()">
+    </div>
+  </div>
+
+  <div class="filter-wrap">
+    <button class="chip on" onclick="setFilter('all',this)">All</button>
+    <button class="chip"    onclick="setFilter('new',this)">New</button>
+    <button class="chip"    onclick="setFilter('trial_period',this)">Trial Period</button>
+    <button class="chip"    onclick="setFilter('completed',this)">Completed</button>
+    <button class="chip"    onclick="setFilter('issues',this)">Issues</button>
+    <button class="chip"    onclick="setFilter('not_needed',this)">Not Needed</button>
+    <button class="chip" id="scan-btn"         onclick="scanBacklog()"      style="border-color:#2563eb;color:#2563eb">🔍 Scan Backlog</button>
+    <button class="chip" id="inv-scan-btn"     onclick="scanInvoices()"     style="border-color:#16a34a;color:#16a34a">🧾 Send Unsent Invoices</button>
+    <button class="chip" id="pending-inv-btn"  onclick="loadPendingInvoices()" style="border-color:#d97706;color:#d97706">📋 Review Pending Invoices</button>
+    <button class="chip" id="pause-btn"        onclick="togglePause()"      style="border-color:#dc2626;color:#dc2626">⏸ Pause Bot</button>
+  </div>
+
+  <!-- PENDING INVOICES PANEL -->
+  <div id="pending-invoices-panel" style="display:none;margin:0 0 16px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:16px;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px 10px;">
+      <div style="font-size:14px;font-weight:700;color:#92400e;">📋 Pending Invoices <span id="pending-count" style="background:#f59e0b;color:#fff;border-radius:20px;padding:1px 8px;font-size:12px;margin-left:6px;"></span></div>
+      <button onclick="closePendingPanel()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#92400e;line-height:1;">×</button>
+    </div>
+    <div id="pending-invoice-list" style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;"></div>
+  </div>
+
+  <div id="client-list">
+    <div style="padding:32px 16px;text-align:center;color:#a1a1aa;font-size:14px">Loading…</div>
+  </div>
+</div>
+
+<button class="fab" onclick="openModal()">+</button>
+
+<!-- INVOICE MODAL -->
+<div class="overlay" id="inv-overlay" onclick="invBgClose(event)">
+  <div class="msheet">
+    <div class="mhandle"></div>
+    <div class="mtitle">Generate Invoice</div>
+    <div class="mfield">
+      <label>Billed To (Client Name)</label>
+      <div style="display:flex;gap:8px">
+        <select id="inv-prefix" style="padding:12px 10px;border-radius:12px;border:1.5px solid #e4e4e7;font-size:15px;font-family:'Inter',sans-serif;color:#09090b;background:#fff;outline:none;width:90px;flex-shrink:0">
+          <option value="Ms.">Ms.</option>
+          <option value="Mr.">Mr.</option>
+          <option value="Mrs.">Mrs.</option>
+          <option value="Dr.">Dr.</option>
+        </select>
+        <input id="inv-client" type="text" placeholder="Kavya Bhaskar" autocomplete="off" style="flex:1">
+      </div>
+    </div>
+    <div class="mfield">
+      <label>Client Address <span style="color:#a1a1aa;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input id="inv-addr" type="text" placeholder="e.g. 12, MG Road, Chennai 600001">
+    </div>
+    <div class="mfield">
+      <label>Client Phone <span style="color:#a1a1aa;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input id="inv-phone" type="tel" placeholder="e.g. 9176270007" oninput="autoFormatPhone(this)">
+    </div>
+    <div class="mfield">
+      <label>Staff Name (Worker placed)</label>
+      <input id="inv-staff" type="text" placeholder="e.g. Kannathal">
+    </div>
+    <div class="mfield">
+      <label>Role</label>
+      <select id="inv-role">
+        <option value="BS">Babysitter / Nanny</option>
+        <option value="CK">Cook</option>
+        <option value="HK">Housekeeper</option>
+        <option value="D">Driver</option>
+        <option value="EC">Elderly Care</option>
+        <option value="PC">Patient Care</option>
+        <option value="S">Security</option>
+        <option value="DH">Domestic Helper</option>
+        <option value="GW">General Worker</option>
+        <option value="T">Tutor</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;padding:0 20px 14px">
+      <div style="flex:1">
+        <label style="display:block;font-size:11px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Salary (₹)</label>
+        <input id="inv-salary" type="number" placeholder="e.g. 22000" style="width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e4e4e7;font-size:15px;font-family:'Inter',sans-serif;color:#09090b;background:#fff;outline:none">
+      </div>
+      <div style="flex:1">
+        <label style="display:block;font-size:11px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Date of Joining</label>
+        <input id="inv-date" type="text" placeholder="e.g. 16.02.26" style="width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid #e4e4e7;font-size:15px;font-family:'Inter',sans-serif;color:#09090b;background:#fff;outline:none">
+      </div>
+    </div>
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:10px">
+      <input id="inv-regfee" type="checkbox" style="width:18px;height:18px;cursor:pointer">
+      <label for="inv-regfee" style="font-size:14px;font-weight:500;cursor:pointer">Reg. Fee Paid (deduct ₹1,000)</label>
+    </div>
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:10px">
+      <input id="inv-sendgroup" type="checkbox" checked style="width:18px;height:18px;cursor:pointer">
+      <label for="inv-sendgroup" style="font-size:14px;font-weight:500;cursor:pointer">Send to Alpha the Hub group</label>
+    </div>
+    <div class="mbtns">
+      <button class="mbtn-cancel" onclick="closeInvoiceModal()">Cancel</button>
+      <button class="mbtn-main" id="inv-btn" onclick="generateInvoice()">Generate PDF →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CLIENT MODAL -->
+<div class="overlay" id="overlay" onclick="bgClose(event)">
+  <div class="msheet">
+    <div class="mhandle"></div>
+    <div class="mtitle">Add New Client</div>
+    <div class="mfield">
+      <label>Client Name</label>
+      <input id="f-name" type="text" placeholder="e.g. Rufuina" autocomplete="off">
+    </div>
+    <div class="mfield">
+      <label>Phone (with country code)</label>
+      <input id="f-phone" type="tel" placeholder="e.g. +60123456789">
+    </div>
+    <div class="mfield">
+      <label>Role Needed <span style="color:#a1a1aa;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <select id="f-role">
+        <option value="">No specific role / General enquiry</option>
+        <option>Babysitter / Nanny</option>
+        <option>Cook</option>
+        <option>Housekeeper</option>
+        <option>Driver</option>
+        <option>Elderly Care</option>
+        <option>Patient Care</option>
+        <option>Security</option>
+        <option>Domestic Helper</option>
+        <option>General Worker</option>
+        <option>Tutor</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Handled By</label>
+      <select id="f-staff">
+        <option>Ms. Roslyn</option>
+        <option>Ms. Mercy</option>
+        <option>Ms. Divya</option>
+        <option>Immanuel</option>
+      </select>
+    </div>
+    <div class="mbtns" id="mbtns-normal">
+      <button class="mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn-main" id="send-btn" onclick="addClient()">Send Message →</button>
+    </div>
+    <div class="mbtns-confirm" id="mbtns-confirm">
+      <div class="confirm-warn">⚠️ Already contacted this client before. Send again?</div>
+      <div class="confirm-btns">
+        <button class="mbtn-cancel" onclick="dismissConfirm()">Cancel</button>
+        <button class="mbtn-main" id="send-anyway-btn" onclick="sendAnyway()">Send Anyway →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM SHEET -->
+<div class="del-overlay" id="del-overlay">
+  <div class="del-sheet">
+    <div class="del-title" id="del-title">Delete client?</div>
+    <div class="del-sub" id="del-sub">This will permanently remove the record. This cannot be undone.</div>
+    <div class="del-btns">
+      <button class="btn-del-cancel" onclick="closeDel()">Keep</button>
+      <button class="btn-del-confirm" id="del-confirm-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+let allClients = [], curFilter = 'all', pendingDelete = null;
+
+const STATUS = {
+  new:          {label:'New',         badge:'ba'},
+  message_sent: {label:'New',         badge:'ba'},
+  followed_up:  {label:'New',         badge:'ba'},
+  replied:      {label:'New',         badge:'ba'},
+  neutral:      {label:'New',         badge:'ba'},
+  positive:     {label:'New',         badge:'ba'},
+  trial_period: {label:'Trial Period',badge:'bb'},
+  awaiting_payment:{label:'Trial Period',badge:'bb'},
+  completed:    {label:'Completed',   badge:'bg'},
+  sorted:       {label:'Completed',   badge:'bg'},
+  issues:       {label:'Issues',      badge:'br'},
+  question:     {label:'Issues',      badge:'br'},
+  not_needed:   {label:'Not Needed',  badge:'bx'},
+  negative:     {label:'Not Needed',  badge:'bx'},
+  dropped:      {label:'Not Needed',  badge:'bx'},
+};
+
+const FILTER_MAP = {
+  all:         s => !['not_needed','dropped','negative'].includes(s),
+  new:         s => ['new','message_sent','followed_up','replied','neutral','positive'].includes(s),
+  trial_period:s => ['trial_period','awaiting_payment'].includes(s),
+  completed:   s => ['completed','sorted'].includes(s),
+  issues:      s => ['issues','question'].includes(s),
+  not_needed:  s => ['not_needed','dropped','negative'].includes(s),
+};
+
+function isNew(s)       { return ['new','message_sent','followed_up','replied','neutral','positive'].includes(s); }
+function isTrial(s)     { return ['trial_period','awaiting_payment'].includes(s); }
+function isDone(s)      { return ['completed','sorted'].includes(s); }
+function isIssues(s)    { return ['issues','question'].includes(s); }
+function isNotNeeded(s) { return ['not_needed','dropped','negative'].includes(s); }
+
+async function load() {
+  try {
+    const [clients, status] = await Promise.all([
+      fetch('/api/clients').then(r=>r.json()),
+      fetch('/api/status').then(r=>r.json()),
+    ]);
+    allClients = clients;
+    const dot   = document.getElementById('bot-dot');
+    const label = document.getElementById('bot-label');
+    if (status.ready) { dot.classList.remove('off'); label.textContent = status.paused ? 'Paused' : 'Connected'; }
+    else              { dot.classList.add('off');    label.textContent = 'Not connected'; }
+    updatePauseBtn(!!status.paused);
+    renderStats();
+    renderClients();
+  } catch { /* offline */ }
+}
+
+function renderStats() {
+  const active = allClients.filter(c => !isNotNeeded(c.status));
+  document.getElementById('s-total').textContent = active.length;
+  document.getElementById('s-new').textContent   = active.filter(c=>isNew(c.status)).length;
+  document.getElementById('s-trial').textContent = active.filter(c=>isTrial(c.status)).length;
+  document.getElementById('s-done').textContent  = allClients.filter(c=>isDone(c.status)).length;
+}
+
+function renderClients() {
+  const q = (document.getElementById('srch').value||'').toLowerCase();
+  const fn = FILTER_MAP[curFilter] || FILTER_MAP.all;
+
+  const list = allClients.filter(c => {
+    if (!fn(c.status)) return false;
+    if (q && !(c.clientName+c.phone+(c.role||'')+c.handledBy).toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b) => new Date(b.messageSentAt)-new Date(a.messageSentAt));
+
+  const wrap = document.getElementById('client-list');
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">${q?'No results for "'+esc(q)+'"':'Nothing here yet'}</div></div>`;
+    return;
+  }
+
+  // Group by month
+  const groups = {};
+  list.forEach(c => {
+    const d   = new Date(c.messageSentAt);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const lbl = d.toLocaleDateString('en-MY',{month:'long'}) + " '" + String(d.getFullYear()).slice(2);
+    if (!groups[key]) groups[key] = {lbl, items:[]};
+    groups[key].items.push(c);
+  });
+
+  const keys = Object.keys(groups).sort().reverse();
+  wrap.innerHTML = keys.map(k => {
+    const {lbl, items} = groups[k];
+    return `<div class="month-hd">${lbl}</div>` + items.map(c => renderCard(c)).join('');
+  }).join('');
+}
+
+function renderCard(c) {
+  const s    = STATUS[c.status] || {label:c.status, badge:'bx'};
+  const tel  = c.phone.replace(/\s/g,'');
+  const note = c.notes?.length ? c.notes[c.notes.length-1].text : '';
+  const ago  = timeSince(c.lastActivityAt);
+  const waLink = `https://wa.me/${tel.replace('+','')}`;
+
+  const newAct   = isNew(c.status)       ? 'active' : '';
+  const trialAct = isTrial(c.status)     ? 'active' : '';
+  const doneAct  = isDone(c.status)      ? 'active' : '';
+  const issAct   = isIssues(c.status)    ? 'active' : '';
+  const nnAct    = isNotNeeded(c.status) ? 'active' : '';
+
+  return `
+<div class="ccard" id="card-${esc(tel)}">
+  <div class="ccard-head" onclick="toggleCard('${esc(tel)}')">
+    <span class="cbadge ${s.badge}">${s.label}</span>
+    <div class="chead-info">
+      <div class="cname">${esc(c.clientName)}</div>
+      <div class="cmeta">${esc(c.role||'General')} · ${esc(c.handledBy)} · ${ago}</div>
+    </div>
+    <div class="chead-right">
+      <button class="btn-icon del" onclick="confirmDel(event,'${esc(tel)}','${esc(c.clientName)}')" title="Delete">🗑</button>
+      <button class="btn-icon" title="Expand"><span class="expand-icon">⌄</span></button>
+    </div>
+  </div>
+  <div class="ccard-body">
+    <div class="cinfo">
+      <div class="ci"><span class="ci-icon">📞</span><a href="tel:${tel}">${esc(c.phone)}</a>&nbsp;·&nbsp;<a href="${waLink}" target="_blank">WhatsApp</a></div>
+      <div class="ci"><span class="ci-icon">👤</span>${esc(c.handledBy)}</div>
+      ${c.followUpCount ? `<div class="ci"><span class="ci-icon">🔁</span>${c.followUpCount} follow-up${c.followUpCount>1?'s':''}</div>` : ''}
+    </div>
+    ${note ? `<div class="cnote-box"><div class="cnote-lbl">Last note</div><div class="cnote-txt">${esc(note)}</div></div>` : ''}
+    <div class="stog-lbl">Update status</div>
+    <div class="stog-wrap">
+      <button class="stog s-new ${newAct}"       onclick="setStatus('${tel}','new')">New</button>
+      <button class="stog s-trial ${trialAct}"   onclick="setStatus('${tel}','trial_period')">Trial Period</button>
+      <button class="stog s-done ${doneAct}"     onclick="setStatus('${tel}','completed')">Completed</button>
+      <button class="stog s-issues ${issAct}"    onclick="setStatus('${tel}','issues')">Issues</button>
+      <button class="stog s-notneeded ${nnAct}"  onclick="setStatus('${tel}','not_needed')">Not Needed</button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-followup" style="flex:1" onclick="doFollowup('${tel}')">Send Follow-Up</button>
+      <button class="btn-followup" style="flex:1;background:#000;color:#fff" onclick="openInvoiceModal('${esc(tel)}','${esc(c.clientName)}','${esc(c.role||'')}')">Generate Invoice</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function toggleCard(tel) {
+  const card = document.getElementById('card-'+tel);
+  if (card) card.classList.toggle('open');
+}
+
+async function setStatus(phone, status) {
+  const r = await fetch(`/api/clients/${encodeURIComponent(phone)}/status`, {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status, author:'Dashboard'}),
+  });
+  if (r.ok) { toast('✅ Status updated'); load(); }
+  else toast('❌ Could not update status');
+}
+
+async function doFollowup(phone) {
+  const r = await fetch(`/api/clients/${encodeURIComponent(phone)}/followup`, {method:'POST'});
+  if (r.ok) { toast('Message sent!'); load(); return; }
+  const e = await r.json().catch(()=>({}));
+  if (r.status===503) toast('❌ WhatsApp not connected — scan QR first');
+  else toast('❌ ' + (e.error||'Send failed'));
+}
+
+function confirmDel(event, tel, name) {
+  event.stopPropagation();
+  pendingDelete = tel;
+  document.getElementById('del-title').textContent = `Delete ${name}?`;
+  document.getElementById('del-sub').textContent   = `This will permanently remove ${name}'s record. This cannot be undone.`;
+  document.getElementById('del-confirm-btn').onclick = executeDelete;
+  document.getElementById('del-overlay').classList.add('open');
+}
+
+async function executeDelete() {
+  if (!pendingDelete) return;
+  const r = await fetch(`/api/clients/${encodeURIComponent(pendingDelete)}`, {method:'DELETE'});
+  closeDel();
+  if (r.ok) { toast('Record deleted'); load(); }
+  else toast('❌ Could not delete');
+}
+
+function closeDel() {
+  document.getElementById('del-overlay').classList.remove('open');
+  pendingDelete = null;
+}
+
+async function addClient() {
+  const name  = document.getElementById('f-name').value.trim();
+  const phone = document.getElementById('f-phone').value.trim();
+  const role  = document.getElementById('f-role').value;
+  const staff = document.getElementById('f-staff').value;
+  if (!name||!phone) { toast('⚠️ Enter client name and phone'); return; }
+  const btn = document.getElementById('send-btn');
+  btn.textContent='Sending…'; btn.disabled=true;
+  const r = await fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,phone,role,handledBy:staff})});
+  btn.textContent='Send Message →'; btn.disabled=false;
+  if (r.status===409) { document.getElementById('mbtns-normal').style.display='none'; document.getElementById('mbtns-confirm').style.display='flex'; return; }
+  if (r.status===503) { toast('❌ WhatsApp not connected — scan QR first'); return; }
+  if (!r.ok) { const e=await r.json().catch(()=>({})); toast('❌ '+(e.error||'Send failed')); return; }
+  toast('✅ Message sent to '+esc(name)+'!');
+  closeModal(); resetForm(); load();
+}
+
+async function sendAnyway() {
+  const name=document.getElementById('f-name').value.trim(), phone=document.getElementById('f-phone').value.trim();
+  const role=document.getElementById('f-role').value, staff=document.getElementById('f-staff').value;
+  const btn=document.getElementById('send-anyway-btn');
+  btn.textContent='Sending…'; btn.disabled=true;
+  const r=await fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,phone,role,handledBy:staff,force:true})});
+  btn.textContent='Send Anyway →'; btn.disabled=false;
+  if (r.status===503){toast('❌ WhatsApp not connected — scan QR first');return;}
+  if (!r.ok){const e=await r.json().catch(()=>({}));toast('❌ '+(e.error||'Send failed'));return;}
+  toast('✅ Message sent to '+esc(name)+'!');
+  closeModal(); resetForm(); load();
+}
+
+function dismissConfirm() { document.getElementById('mbtns-normal').style.display='flex'; document.getElementById('mbtns-confirm').style.display='none'; closeModal(); }
+function resetForm() { document.getElementById('f-name').value=''; document.getElementById('f-phone').value=''; document.getElementById('f-role').value=''; }
+
+/* UI helpers */
+function setFilter(f,el) { curFilter=f; document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); el.classList.add('on'); renderClients(); }
+function openModal()  { document.getElementById('overlay').classList.add('open'); }
+function closeModal() { document.getElementById('overlay').classList.remove('open'); document.getElementById('mbtns-normal').style.display='flex'; document.getElementById('mbtns-confirm').style.display='none'; }
+function bgClose(e)   { if(e.target===e.currentTarget) closeModal(); }
+
+function toast(msg,dur=3000) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+function esc(str) { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function timeSince(iso) {
+  if (!iso) return '–';
+  const s=(Date.now()-new Date(iso))/1000;
+  if (s<60)    return 'just now';
+  if (s<3600)  return Math.floor(s/60)+'m ago';
+  if (s<86400) return Math.floor(s/3600)+'h ago';
+  const d=Math.floor(s/86400); return d+'d ago';
+}
+
+/* ── Invoice modal ── */
+function autoFormatPhone(el) {
+  let d = el.value.replace(/\D/g, '');
+  if (d.startsWith('91') && d.length > 10) d = d.slice(2);
+  if (d.length === 10) el.value = '+91 ' + d.slice(0,5) + ' ' + d.slice(5);
+}
+
+function openInvoiceModal(tel, name, role) {
+  // Split prefix from name if already present
+  const prefixMatch = (name || '').match(/^(Ms\.|Mr\.|Mrs\.|Dr\.)\s+(.+)$/i);
+  if (prefixMatch) {
+    document.getElementById('inv-prefix').value = prefixMatch[1];
+    document.getElementById('inv-client').value = prefixMatch[2];
+  } else {
+    document.getElementById('inv-prefix').value = 'Ms.';
+    document.getElementById('inv-client').value = name || '';
+  }
+  // Format phone
+  let ph = (tel || '').replace(/\D/g,'');
+  if (ph.startsWith('91') && ph.length === 12) ph = ph.slice(2);
+  document.getElementById('inv-phone').value = ph.length === 10
+    ? '+91 ' + ph.slice(0,5) + ' ' + ph.slice(5) : (tel || '');
+  document.getElementById('inv-addr').value    = '';
+  document.getElementById('inv-staff').value   = '';
+  document.getElementById('inv-salary').value  = '';
+  document.getElementById('inv-date').value    = '';
+  document.getElementById('inv-regfee').checked     = false;
+  document.getElementById('inv-sendgroup').checked  = true;
+  const roleMap = {'Babysitter':'BS','Nanny':'BS','Cook':'CK','Housekeeper':'HK','Driver':'D',
+    'Elderly Care':'EC','Patient Care':'PC','Security':'S','Domestic Helper':'DH','General Worker':'GW','Tutor':'T'};
+  document.getElementById('inv-role').value = roleMap[role] || 'BS';
+  document.getElementById('inv-overlay').classList.add('open');
+}
+function closeInvoiceModal() { document.getElementById('inv-overlay').classList.remove('open'); }
+function invBgClose(e) { if (e.target === e.currentTarget) closeInvoiceModal(); }
+
+async function generateInvoice() {
+  const prefix      = document.getElementById('inv-prefix').value;
+  const rawName     = document.getElementById('inv-client').value.trim();
+  const clientName  = rawName ? prefix + ' ' + rawName : '';
+  const staffName   = document.getElementById('inv-staff').value.trim();
+  const salary      = parseInt(document.getElementById('inv-salary').value);
+  if (!clientName || !staffName || !salary) { toast('⚠️ Client name, staff name and salary are required'); return; }
+
+  const btn = document.getElementById('inv-btn');
+  btn.textContent = 'Generating…'; btn.disabled = true;
+
+  const body = {
+    clientName,
+    clientAddress : document.getElementById('inv-addr').value.trim(),
+    clientPhone   : document.getElementById('inv-phone').value.trim(),
+    staffName,
+    roleAbbrev    : document.getElementById('inv-role').value,
+    joiningDate   : document.getElementById('inv-date').value.trim(),
+    salary,
+    regFeePaid    : document.getElementById('inv-regfee').checked,
+    sendToGroup   : document.getElementById('inv-sendgroup').checked,
+  };
+
+  try {
+    const r = await fetch('/api/generate-invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error || 'Failed')); return; }
+    toast(`✅ Invoice No. ${d.invoiceNo} generated!`, 4000);
+    closeInvoiceModal();
+    // Auto-download
+    window.open('/api/invoices/' + encodeURIComponent(d.filename), '_blank');
+  } catch(e) {
+    toast('❌ ' + e.message);
+  } finally {
+    btn.textContent = 'Generate PDF →'; btn.disabled = false;
+  }
+}
+
+async function togglePause() {
+  const btn = document.getElementById('pause-btn');
+  const isPaused = btn.dataset.paused === 'true';
+  const endpoint = isPaused ? '/api/resume' : '/api/pause';
+  btn.disabled = true;
+  try {
+    const r = await fetch(endpoint, { method: 'POST' });
+    const d = await r.json();
+    updatePauseBtn(d.paused);
+    toast(d.paused ? '⏸️ Bot paused — no messages will be sent' : '▶️ Bot resumed — back to normal', 4000);
+  } catch(e) {
+    toast('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function updatePauseBtn(paused) {
+  const btn = document.getElementById('pause-btn');
+  btn.dataset.paused = paused ? 'true' : 'false';
+  if (paused) {
+    btn.textContent = '▶ Resume Bot';
+    btn.style.cssText = 'flex-shrink:0;padding:7px 14px;border-radius:99px;border:2px solid #dc2626;background:#dc2626;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Inter,sans-serif;';
+  } else {
+    btn.textContent = '⏸ Pause Bot';
+    btn.style.cssText = 'flex-shrink:0;padding:7px 14px;border-radius:99px;border:1.5px solid #dc2626;background:#fff;color:#dc2626;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:Inter,sans-serif;';
+  }
+}
+
+async function scanBacklog() {
+  const btn = document.getElementById('scan-btn');
+  btn.textContent = '⏳ Scanning…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/scan-backlog', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+    if (r.status === 503) { toast('❌ WhatsApp not connected — scan QR first', 4000); return; }
+    const d = await r.json();
+    if (d.error) { toast('❌ ' + d.error, 4000); return; }
+    toast(`✅ Done — ${d.summary}`, 5000);
+    load();
+  } catch (e) {
+    toast('❌ Scan failed: ' + e.message, 4000);
+  } finally {
+    btn.textContent = '🔍 Scan Backlog';
+    btn.disabled = false;
+  }
+}
+
+async function scanInvoices() {
+  const btn = document.getElementById('inv-scan-btn');
+  btn.textContent = '⏳ Scanning…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/scan-invoices', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+    if (r.status === 503) { toast('❌ WhatsApp not connected — scan QR first', 4000); return; }
+    const d = await r.json();
+    if (d.error) { toast('❌ ' + d.error, 4000); return; }
+    toast(`✅ ${d.summary}`, 5000);
+  } catch (e) {
+    toast('❌ ' + e.message, 4000);
+  } finally {
+    btn.textContent = '🧾 Send Unsent Invoices';
+    btn.disabled = false;
+  }
+}
+
+// ── Pending Invoices Panel ────────────────────────────────────
+
+function closePendingPanel() {
+  document.getElementById('pending-invoices-panel').style.display = 'none';
+}
+
+async function loadPendingInvoices() {
+  const btn = document.getElementById('pending-inv-btn');
+  btn.textContent = '⏳ Scanning…';
+  btn.disabled = true;
+  const panel = document.getElementById('pending-invoices-panel');
+  const list  = document.getElementById('pending-invoice-list');
+  const count = document.getElementById('pending-count');
+  list.innerHTML = '<div style="text-align:center;color:#92400e;padding:10px;font-size:13px;">Scanning group messages…</div>';
+  panel.style.display = 'block';
+
+  try {
+    const r = await fetch('/api/pending-invoices');
+    if (r.status === 503) { toast('❌ WhatsApp not connected', 4000); panel.style.display='none'; return; }
+    const d = await r.json();
+    if (d.error) { toast('❌ ' + d.error, 4000); panel.style.display='none'; return; }
+
+    if (!d.pending.length) {
+      list.innerHTML = '<div style="text-align:center;color:#92400e;padding:10px;font-size:13px;">No invoice-format messages found in the last 10 days.</div>';
+      count.textContent = '0';
+      return;
+    }
+
+    const unsentCount = d.pending.filter(i => !i.alreadySent).length;
+    count.textContent = unsentCount > 0 ? unsentCount : '✓';
+    list.innerHTML = '';
+
+    // Track invoice number only for unsent items
+    let nextNo = d.nextInvoiceNo;
+    let unsentIdx = 0;
+
+    d.pending.forEach((inv, idx) => {
+      const card = document.createElement('div');
+      card.id = `pinv-${idx}`;
+
+      const isSent = !!inv.alreadySent;
+      const total  = inv.total.toLocaleString('en-IN');
+      const salary = inv.salary.toLocaleString('en-IN');
+      const regNote = inv.regFeePaid ? ' <span style="color:#d97706;font-size:11px;">(Reg. fee deducted)</span>' : '';
+
+      if (isSent) {
+        // Already sent — dimmed card
+        card.style.cssText = 'background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;opacity:0.75;';
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#374151;">${esc(inv.clientName)}</div>
+              <div style="font-size:11px;color:#9ca3af;margin-top:2px;">${esc(inv.staffName)} · ${esc(inv.roleLabel)} · ${inv.sentAt}</div>
+              <div style="font-size:12px;color:#6b7280;margin-top:2px;">₹ ${salary} · ${esc(inv.joiningDate)||'—'}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+              <div style="background:#dcfce7;color:#16a34a;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">✅ Invoice Sent</div>
+              <button onclick="resendPendingInvoice(${idx}, '${encodeURIComponent(JSON.stringify(inv))}')"
+                id="pinv-btn-${idx}"
+                style="padding:6px 12px;background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:8px;font-size:11px;cursor:pointer;">
+                Re-send
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        // Unsent — full card
+        const assignedNo = nextNo + unsentIdx;
+        unsentIdx++;
+        card.style.cssText = 'background:#fff;border:1.5px solid #fbbf24;border-radius:12px;padding:14px 16px;';
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#111;">${esc(inv.clientName)}</div>
+              <div style="font-size:12px;color:#888;margin-top:2px;">Posted: ${inv.sentAt}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:13px;font-weight:700;color:#111;">Invoice No. ${assignedNo}</div>
+              <div style="font-size:12px;color:#555;margin-top:2px;">₹ ${total}${regNote}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:#555;margin-bottom:12px;">
+            <div>👤 <b>Staff:</b> ${esc(inv.staffName)} <span style="background:#111;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;margin-left:3px;">${esc(inv.roleLabel)}</span></div>
+            <div>📅 <b>Joining:</b> ${esc(inv.joiningDate) || '—'}</div>
+            <div>💰 <b>Salary:</b> ₹ ${salary}</div>
+            <div>📞 <b>Phone:</b> ${esc(inv.clientPhone) || '—'}</div>
+            ${inv.clientAddress ? `<div style="grid-column:span 2;">📍 ${esc(inv.clientAddress)}</div>` : ''}
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="sendPendingInvoice(${idx}, '${encodeURIComponent(JSON.stringify(inv))}')"
+              id="pinv-btn-${idx}"
+              style="flex:1;padding:10px;background:#111;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
+              Send Invoice →
+            </button>
+            <button onclick="dismissPending(${idx})"
+              style="padding:10px 14px;background:#f3f4f6;color:#555;border:none;border-radius:10px;font-size:13px;cursor:pointer;">
+              Skip
+            </button>
+          </div>
+        `;
+      }
+      list.appendChild(card);
+    });
+
+  } catch (e) {
+    toast('❌ ' + e.message, 4000);
+    panel.style.display = 'none';
+  } finally {
+    btn.textContent = '📋 Review Pending Invoices';
+    btn.disabled = false;
+  }
+}
+
+function dismissPending(idx) {
+  const card = document.getElementById(`pinv-${idx}`);
+  if (card) card.remove();
+  // Update count
+  const remaining = document.querySelectorAll('[id^="pinv-"]').length;
+  document.getElementById('pending-count').textContent = remaining;
+  if (!remaining) closePendingPanel();
+}
+
+async function sendPendingInvoice(idx, encodedInv) {
+  const btn = document.getElementById(`pinv-btn-${idx}`);
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+  try {
+    const inv = JSON.parse(decodeURIComponent(encodedInv));
+    const body = {
+      clientName   : inv.clientName,
+      clientAddress: inv.clientAddress,
+      clientPhone  : inv.clientPhone,
+      staffName    : inv.staffName,
+      roleAbbrev   : inv.roleAbbrev,
+      joiningDate  : inv.joiningDate,
+      salary       : inv.salary,
+      regFeePaid   : inv.regFeePaid,
+      sendToGroup  : true,
+      markMsgId    : inv.msgId,
+    };
+    const r = await fetch('/api/generate-invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error || 'Failed')); btn.textContent='Send Invoice →'; btn.disabled=false; return; }
+    toast(`✅ Invoice No. ${d.invoiceNo} sent to group!`, 4000);
+    dismissPending(idx);
+  } catch (e) {
+    toast('❌ ' + e.message, 4000);
+    btn.textContent = 'Send Invoice →';
+    btn.disabled = false;
+  }
+}
+
+async function resendPendingInvoice(idx, encodedInv) {
+  const btn = document.getElementById(`pinv-btn-${idx}`);
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+  try {
+    const inv = JSON.parse(decodeURIComponent(encodedInv));
+    const body = {
+      clientName   : inv.clientName,
+      clientAddress: inv.clientAddress,
+      clientPhone  : inv.clientPhone,
+      staffName    : inv.staffName,
+      roleAbbrev   : inv.roleAbbrev,
+      joiningDate  : inv.joiningDate,
+      salary       : inv.salary,
+      regFeePaid   : inv.regFeePaid,
+      sendToGroup  : true,
+    };
+    const r = await fetch('/api/generate-invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error || 'Failed')); btn.textContent='Re-send'; btn.disabled=false; return; }
+    toast(`✅ Invoice No. ${d.invoiceNo} re-sent to group!`, 4000);
+    btn.textContent = '✅ Sent'; btn.disabled = true;
+  } catch (e) {
+    toast('❌ ' + e.message, 4000);
+    btn.textContent = 'Re-send';
+    btn.disabled = false;
+  }
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
