@@ -83,18 +83,26 @@ client.on('ready', async () => {
   console.log('\n\n✅ Alpha Bot is online!\n');
   botReady = true;
 
-  const chats = await client.getChats();
-  groupChat = chats.find(c => c.name === config.GROUP_NAME);
+  try {
+    const chats = await Promise.race([
+      client.getChats(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getChats timeout')), 10000))
+    ]);
+    groupChat = chats.find(c => c.name === config.GROUP_NAME);
 
-  if (groupChat) {
-    console.log(`📍 Monitoring: "${config.GROUP_NAME}"`);
-  } else {
-    console.error(`\n❌ Group "${config.GROUP_NAME}" not found! Check config.js\n`);
+    if (groupChat) {
+      console.log(`📍 Monitoring: "${config.GROUP_NAME}"`);
+    } else {
+      console.error(`\n❌ Group "${config.GROUP_NAME}" not found! Check config.js\n`);
+    }
+
+    cron.schedule(config.MORNING_BRIEFING_CRON, sendMorningBriefing, { timezone: config.TIMEZONE });
+    console.log(`⏰ Morning briefing: ${config.MORNING_BRIEFING_CRON} (${config.TIMEZONE})`);
+    if (dashboardUrl) console.log(`📊 Dashboard: ${dashboardUrl}\n`);
+  } catch (err) {
+    console.error('⚠️  Error in ready handler:', err.message);
+    console.log('   Bot is still online, continuing anyway...');
   }
-
-  cron.schedule(config.MORNING_BRIEFING_CRON, sendMorningBriefing, { timezone: config.TIMEZONE });
-  console.log(`⏰ Morning briefing: ${config.MORNING_BRIEFING_CRON} (${config.TIMEZONE})`);
-  if (dashboardUrl) console.log(`📊 Dashboard: ${dashboardUrl}\n`);
 });
 
 // ─── Disconnect ────────────────────────────────────────────────
