@@ -121,6 +121,17 @@ client.on('disconnected', () => {
   }, 10_000);
 });
 
+// ─── Client Error ────────────────────────────────────────────────
+
+client.on('error', (err) => {
+  console.error('⚠️  Client error (continuing):', err.message);
+});
+
+client.on('auth_failure', () => {
+  console.error('⚠️  Auth failure - need to rescan QR');
+  botReady = false;
+});
+
 // ─── Health Check ──────────────────────────────────────────────
 // Runs every 2 minutes. If the Puppeteer browser page has silently
 // detached (common after long uptime), the bot appears "ready" but
@@ -963,7 +974,12 @@ function startDashboard() {
   app.get('/api/status', (req, res) => {
     // Railway health check — return 200 OK as long as the app is running.
     // The bot may still be initializing, but the app itself is healthy.
-    res.status(200).json({ ready: botReady, hasQR: !!latestQR, paused: botPaused });
+    try {
+      res.status(200).json({ ready: botReady, hasQR: !!latestQR, paused: botPaused });
+    } catch (err) {
+      console.error('[HEALTH] Error in status endpoint:', err);
+      res.status(500).json({ error: 'Internal error' });
+    }
   });
 
   // ── API: Pause / Resume ──
@@ -1075,3 +1091,10 @@ process.on('SIGINT', async () => {
   try { await client.destroy(); } catch {}
   process.exit(0);
 });
+
+// Final safety: if anything goes wrong, keep the process alive
+setInterval(() => {
+  if (process.uptime() < 5) {
+    console.log('[KEEPALIVE] Process just started, monitoring...');
+  }
+}, 30000);
