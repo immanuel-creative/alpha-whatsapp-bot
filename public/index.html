@@ -382,8 +382,15 @@ async function load() {
     allClients = clients;
     const dot   = document.getElementById('bot-dot');
     const label = document.getElementById('bot-label');
-    if (status.ready) { dot.classList.remove('off'); label.textContent = status.paused ? 'Paused' : 'Connected'; }
-    else              { dot.classList.add('off');    label.textContent = 'Not connected'; }
+    if (status.ready) { 
+      if (status.groupReady) {
+        dot.classList.remove('off'); label.textContent = status.paused ? 'Paused' : 'Online';
+      } else {
+        dot.classList.remove('off'); label.textContent = 'Finding group...';
+      }
+    } else { 
+      dot.classList.add('off'); label.textContent = 'Connecting...';
+    }
     updatePauseBtn(!!status.paused);
     renderStats();
     renderClients();

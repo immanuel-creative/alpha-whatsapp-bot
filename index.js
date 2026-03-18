@@ -121,6 +121,17 @@ async function findGroupChat() {
   return false;
 }
 
+// On-demand: call this at the start of any API endpoint that needs groupChat.
+// If groupChat is already set → returns true immediately.
+// If botReady but groupChat missing → tries once with 20s timeout.
+// If not botReady → returns false.
+async function ensureGroupChat() {
+  if (groupChat) return true;
+  if (!botReady) return false;
+  console.log('[GROUP] ensureGroupChat() called on-demand...');
+  return await findGroupChat();
+}
+
 // ─── Ready ─────────────────────────────────────────────────────
 
 client.on('ready', async () => {
@@ -645,8 +656,14 @@ function startDashboard() {
   // Optional body: { "since": "2026-03-02" }  (defaults to last Monday)
   // ── API: Scan backlog (GET) — returns list of clients who haven't received profile+form ──
   app.get('/api/scan-backlog', async (req, res) => {
-    if (!botReady || !groupChat) {
-      return res.status(503).json({ error: 'WhatsApp not connected or group not found.' });
+    if (!botReady) {
+      return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
+    }
+    if (!groupChat) {
+      const found = await ensureGroupChat();
+      if (!found) {
+        return res.status(503).json({ error: 'Connected but still finding your group — wait 15s and try again.' });
+      }
     }
 
     let messages;
@@ -713,8 +730,14 @@ function startDashboard() {
   });
 
   app.post('/api/scan-backlog', async (req, res) => {
-    if (!botReady || !groupChat) {
-      return res.status(503).json({ error: 'WhatsApp not connected or group not found.' });
+    if (!botReady) {
+      return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
+    }
+    if (!groupChat) {
+      const found = await ensureGroupChat();
+      if (!found) {
+        return res.status(503).json({ error: 'Connected but still finding your group — wait 15s and try again.' });
+      }
     }
     if (botPaused) {
       return res.status(503).json({ error: 'Bot is paused — resume it before scanning backlog.' });
@@ -964,8 +987,14 @@ function startDashboard() {
   // ── API: Get pending (unprocessed) invoices for review ────────
   // GET /api/pending-invoices
   app.get('/api/pending-invoices', async (req, res) => {
-    if (!botReady || !groupChat) {
-      return res.status(503).json({ error: 'WhatsApp not connected.' });
+    if (!botReady) {
+      return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
+    }
+    if (!groupChat) {
+      const found = await ensureGroupChat();
+      if (!found) {
+        return res.status(503).json({ error: 'Connected but still finding your group — wait 15s and try again.' });
+      }
     }
 
     const sinceDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); // last 10 days
@@ -1020,8 +1049,14 @@ function startDashboard() {
   // POST /api/scan-invoices
   // Optional body: { "since": "2026-03-01" }  (defaults to last 30 days)
   app.post('/api/scan-invoices', async (req, res) => {
-    if (!botReady || !groupChat) {
-      return res.status(503).json({ error: 'WhatsApp not connected.' });
+    if (!botReady) {
+      return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
+    }
+    if (!groupChat) {
+      const found = await ensureGroupChat();
+      if (!found) {
+        return res.status(503).json({ error: 'Connected but still finding your group — wait 15s and try again.' });
+      }
     }
 
     // Default: last 30 days
@@ -1141,7 +1176,7 @@ function startDashboard() {
     // Railway health check — return 200 OK as long as the app is running.
     // The bot may still be initializing, but the app itself is healthy.
     try {
-      res.status(200).json({ ready: botReady, hasQR: !!latestQR, paused: botPaused });
+      res.status(200).json({ ready: botReady, groupReady: !!groupChat, hasQR: !!latestQR, paused: botPaused });
     } catch (err) {
       console.error('[HEALTH] Error in status endpoint:', err);
       res.status(500).json({ error: 'Internal error' });
