@@ -3,7 +3,9 @@
 //  Run with:  node index.js
 // ============================================================
 
+console.log('[INIT] Starting Alpha Bot index.js at', new Date().toISOString());
 require('dotenv').config();
+console.log('[INIT] dotenv loaded');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode   = require('qrcode-terminal');
 const cron     = require('node-cron');
@@ -984,7 +986,9 @@ function startDashboard() {
   });
 
   const port = process.env.PORT || config.DASHBOARD_PORT;
+  console.log(`[INIT] Binding to port ${port}...`);
   app.listen(port, '0.0.0.0', () => {
+    console.log(`[INIT] Successfully listening on port ${port}`);
     const ip = getLocalIP();
     dashboardUrl = process.env.RAILWAY_STATIC_URL
       ? `https://${process.env.RAILWAY_STATIC_URL}`
@@ -1021,7 +1025,9 @@ function fmtCsvDate(isoString) {
 
 // Dashboard ALWAYS starts first — so Railway health checks pass
 // even if WhatsApp / Chrome haven't connected yet.
+console.log('[INIT] Calling startDashboard...');
 startDashboard();
+console.log('[INIT] startDashboard() completed (listening on port)');
 
 function clearBrowserLocks() {
   // Remove stale Chromium singleton lock files so retries don't get blocked
