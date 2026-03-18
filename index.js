@@ -655,6 +655,7 @@ function startDashboard() {
   // POST /api/scan-backlog
   // Optional body: { "since": "2026-03-02" }  (defaults to last Monday)
   // ── API: Scan backlog (GET) — returns list of clients who haven't received profile+form ──
+
   app.get('/api/scan-backlog', async (req, res) => {
     if (!botReady) {
       return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
@@ -666,7 +667,7 @@ function startDashboard() {
       }
     }
 
-    const tenDaysAgo = Math.floor((Date.now() - 10 * 24 * 60 * 60 * 1000) / 1000); // unix timestamp
+    const tenDaysAgo = Math.floor((Date.now() - 10 * 24 * 60 * 60 * 1000) / 1000);
 
     let messages;
     try {
@@ -675,12 +676,11 @@ function startDashboard() {
       return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
     }
 
-    // Only look at last 10 days
     const recent = messages.filter(m => m.timestamp >= tenDaysAgo);
-    console.log(`[SCAN-BACKLOG] ${recent.length} messages in last 10 days (of ${messages.length} fetched)`);
+    console.log(`[SCAN-BACKLOG] Scanning ${recent.length} messages from last 10 days`);
 
-    const found = [];
-    const seen  = new Set();
+    // ── Step 1: Regex parser (fast, handles standard formats) ────
+    const regexFound = new Map(); // phone digits → client info
 
     for (const m of recent) {
       let clientName, phone, role = '', roleAbbrev = '';
@@ -696,13 +696,12 @@ function startDashboard() {
         const fnMatch = m.body.match(/^FN:(.+)$/m);
         if (fnMatch) clientName = fnMatch[1].trim();
         const waidMatch = m.body.match(/waid=(\d+)/);
-        if (waidMatch) {
-          phone = '+' + waidMatch[1];
-        } else {
+        if (waidMatch) phone = '+' + waidMatch[1];
+        else {
           const telMatch = m.body.match(/^TEL[^:]*:([+\d\s\-().]+)/m);
           if (telMatch) {
-            const digits = telMatch[1].replace(/[\s\-().]/g, '');
-            phone = digits.startsWith('+') ? digits : '+' + digits;
+            const d = telMatch[1].replace(/[\s\-().]/g, '');
+            phone = d.startsWith('+') ? d : '+' + d;
           }
         }
         if (!clientName || !phone) continue;
@@ -712,20 +711,50 @@ function startDashboard() {
 
       if (!phone) continue;
       const digits = phone.replace(/\D/g, '');
-      if (seen.has(digits)) continue;
-      seen.add(digits);
-
-      // Only show if NOT already in tracker (already in tracker = already processed/sent)
-      const existing = tracker.getByPhone(phone);
-      if (existing) continue; // Already sent — skip
-
-      found.push({ clientName: clientName || 'Unknown', phone, role, roleAbbrev });
+      if (!regexFound.has(digits)) {
+        regexFound.set(digits, { clientName: clientName || 'Unknown', phone, role, roleAbbrev });
+      }
     }
 
-    console.log(`[SCAN-BACKLOG] ${found.length} clients NOT yet sent profile/form`);
-    res.json({ clients: found, total: found.length });
-  });
+    // ── Step 2: AI extraction (catches non-standard formats) ────
+    const chatTexts = recent
+      .filter(m => m.type === 'chat' && m.body && m.body.trim().length > 5)
+      .map(m => m.body.trim());
 
+    let aiFound = [];
+    try {
+      aiFound = await ai.extractClientsFromMessages(chatTexts);
+      console.log(`[SCAN-BACKLOG] AI found ${aiFound.length} potential entries`);
+    } catch (err) {
+      console.error('[SCAN-BACKLOG] AI extraction failed:', err.message);
+    }
+
+    // ── Step 3: Merge regex + AI results ─────────────────────────
+    const merged = new Map(regexFound); // start with regex results
+    for (const c of aiFound) {
+      if (!c.phone) continue;
+      const digits = c.phone.replace(/\D/g, '');
+      if (!merged.has(digits)) {
+        merged.set(digits, {
+          clientName: c.clientName || 'Unknown',
+          phone: c.phone,
+          role: c.role || '',
+          roleAbbrev: c.roleAbbrev || '',
+        });
+      }
+    }
+
+    // ── Step 4: Cross-check tracker — only show NOT yet sent ────
+    const unsent = [];
+    for (const [digits, c] of merged) {
+      const existing = tracker.getByPhone(c.phone);
+      if (existing) continue; // Already in tracker = already processed
+      unsent.push(c);
+    }
+
+    console.log(`[SCAN-BACKLOG] ${unsent.length} clients not yet sent profile/form (regex: ${regexFound.size}, AI: ${aiFound.length})`);
+    res.json({ clients: unsent, total: unsent.length });
+  });
   app.post('/api/scan-backlog', async (req, res) => {
     if (!botReady) {
       return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });

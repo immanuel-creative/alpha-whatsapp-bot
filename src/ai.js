@@ -48,6 +48,73 @@ async function replyToUnknown(messageText) {
   return await callClaude(userPrompt);
 }
 
+// ─── Extract client entries from raw group message texts ──────
+// Used by the scan-backlog endpoint to find clients even in
+// non-standard message formats that the regex parser misses.
+
+async function extractClientsFromMessages(messageTexts) {
+  if (!messageTexts || messageTexts.length === 0) return [];
+
+  // Batch to avoid token overflow — Claude Haiku handles ~80 messages well
+  const batches = [];
+  for (let i = 0; i < messageTexts.length; i += 80) {
+    batches.push(messageTexts.slice(i, i + 80));
+  }
+
+  const allClients = [];
+  const seenPhones = new Set();
+
+  for (const batch of batches) {
+    const content = batch.join('\n---\n');
+    let result;
+    try {
+      result = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        system: `You extract client registration entries from WhatsApp messages for a Malaysian manpower agency.
+
+A client entry is when staff registers a new client. It contains:
+- A person's name (may have Ms./Mr./Mrs./Dr./Dato/Datin prefix)
+- A Malaysian phone number (starts with +60, 60, or 0)
+- Optionally: a role (Cook, Housekeeping/HK, Driver, Babysitter/BS, Elderly Care/EC, Patient Care/PC, Security/S, General Worker/GW, Dispatch/D, Despatch/DH, Tutor/T)
+
+Return ONLY a valid JSON array with no extra text:
+[{"clientName":"Ms. Firstname","phone":"+60XXXXXXXXX","role":"Cook","roleAbbrev":"CK"}]
+
+Rules:
+- Normalize all phone numbers to +60XXXXXXXXX format (Malaysian: 60 or 0 prefix → +60)
+- Keep the name exactly as written including any title
+- If no role is mentioned, use "" for role and roleAbbrev
+- Skip duplicates (same phone number)
+- Return [] if no client entries are found
+- Do NOT include messages that are just conversations, not client registrations`,
+        messages: [{ role: 'user', content: `Extract client entries from these WhatsApp messages:\n\n${content}` }],
+      });
+    } catch (err) {
+      console.error('[AI] extractClientsFromMessages error:', err.message);
+      continue;
+    }
+
+    try {
+      const text = result.content[0].text.trim();
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) continue;
+      const parsed = JSON.parse(jsonMatch[0]);
+      for (const c of parsed) {
+        if (!c.phone) continue;
+        const digits = c.phone.replace(/\D/g, '');
+        if (seenPhones.has(digits)) continue;
+        seenPhones.add(digits);
+        allClients.push(c);
+      }
+    } catch (e) {
+      console.error('[AI] extractClientsFromMessages JSON parse error:', e.message);
+    }
+  }
+
+  return allClients;
+}
+
 // ─── Core API call ────────────────────────────────────────────
 
 async function callClaude(userPrompt) {
@@ -61,4 +128,4 @@ async function callClaude(userPrompt) {
   return response.content[0].text.trim();
 }
 
-module.exports = { replyToClient, replyToUnknown };
+module.exports = { replyToClient, replyToUnknown, extractClientsFromMessages };
