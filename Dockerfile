@@ -59,12 +59,13 @@ RUN npm ci --omit=dev
 # Cache bust: 2026-03-18
 COPY . .
 
-# Create the data folder and copy initial data files
-RUN mkdir -p /app/data && \
-    if [ -f data/clients.json ]; then cp data/clients.json /app/data/; fi && \
-    if [ -f data/invoice-counter.json ]; then cp data/invoice-counter.json /app/data/; fi && \
-    if [ -f data/invoiced-messages.json ]; then cp data/invoiced-messages.json /app/data/; fi && \
-    mkdir -p /app/data/invoices
+# Create seed data directory (volume will be mounted at /app/data, shadowing it)
+# So we copy seed data to /app/data_seed/ instead
+# The init-volume.js script will copy from here on first run
+RUN mkdir -p /app/data_seed && \
+    cp data/clients.json /app/data_seed/ && \
+    cp data/invoice-counter.json /app/data_seed/ && \
+    cp data/invoiced-messages.json /app/data_seed/
 
 EXPOSE 3000
 
