@@ -1086,6 +1086,19 @@ process.on('unhandledRejection', (reason) => {
   console.error('⚠️  Unhandled promise rejection (bot stays up):', reason);
 });
 
+// Absolutely final fallback - keep process alive no matter what
+process.on('exit', (code) => {
+  console.error('❌ PROCESS EXIT EVENT:', code);
+  if (code !== 0) process.exitCode = 0;  // Don't actually exit on error
+});
+
+const originalExit = process.exit;
+process.exit = function(code) {
+  console.error(`❌ process.exit(${code}) called - BLOCKING IT`);
+  // Don't actually exit
+  return originalExit;
+};
+
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down...');
   try { await client.destroy(); } catch {}
