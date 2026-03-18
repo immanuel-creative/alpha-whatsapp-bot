@@ -69,5 +69,10 @@ RUN mkdir -p /app/data_seed && \
 
 EXPOSE 3000
 
+# Health check — Railway uses this to determine if app is healthy
+# Checks /api/status every 10 seconds, with 3 retries, 30 second timeout
+HEALTHCHECK --interval=10s --timeout=30s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/api/status || exit 1
+
 RUN chmod +x start.sh
 CMD ["./start.sh"]
