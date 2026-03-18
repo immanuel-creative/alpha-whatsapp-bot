@@ -11,8 +11,7 @@ const ME = config.PROPRIETOR_NAME;
 // ─── Sent to the CLIENT (private chat) — no emojis ────────────
 
 function initialClientMessage(clientName, staffDisplayName, role) {
-  const hasTitle = /^(mr|ms|mrs|dr|dato|datin)/i.test(clientName.trim());
-  const title = hasTitle ? clientName : `Ms./Mr. ${clientName}`;
+  const title = clientName.trim(); // Use name as-is; staff should include title when logging client
 
   if (!role || role.trim() === '') {
     return (
@@ -58,8 +57,7 @@ function followUpMessage(clientName, followUpNum) {
 // Each intent gets a specific, contextual reply — not a generic one.
 
 function clientAutoReply(clientName, intent) {
-  const hasTitle = /^(mr|ms|mrs|dr|dato|datin)/i.test(clientName.trim());
-  const title = hasTitle ? clientName : `Ms./Mr. ${clientName}`;
+  const title = clientName.trim(); // Use name as-is; staff should include title when logging client
 
   switch (intent) {
 
