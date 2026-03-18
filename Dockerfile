@@ -56,7 +56,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Cache bust: 2026-03-18
+# Cache bust: 2026-03-18-v2
 COPY . .
 
 # Create seed data directory (volume will be mounted at /app/data, shadowing it)
