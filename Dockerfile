@@ -56,6 +56,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
+# Cache bust: 2026-03-18
 COPY . .
 
 # Create the WhatsApp session folder so it exists on first boot
