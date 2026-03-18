@@ -3,4 +3,4 @@ builder = "dockerfile"
 
 [deploy]
 restartPolicyType = "always"
-startCommand = "./start.sh"
+startCommand = "node index.js"
