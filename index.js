@@ -46,10 +46,12 @@ const BOT_START_TIME = Math.floor(Date.now() / 1000);
 // Use a path that works both locally (Mac) and in Docker/Railway
 const AUTH_PATH = process.env.WWEBJS_AUTH_PATH || path.join(__dirname, '.wwebjs_auth');
 
+console.log('[INIT] Creating WhatsApp client...');
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'alpha-bot', dataPath: AUTH_PATH }),
   puppeteer: {
     headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     protocolTimeout: 180000,
     args: [
