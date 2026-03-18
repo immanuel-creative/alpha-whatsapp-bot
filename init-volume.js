@@ -8,7 +8,8 @@ const gitDir = path.join(__dirname, 'data');
 
 const files = ['clients.json', 'invoice-counter.json', 'invoiced-messages.json'];
 
-console.log('Initializing volume at', volumeDir);
+console.error('\n⏳ [INIT] Initializing volume at', volumeDir);
+console.error('[INIT] Git data directory:', gitDir);
 
 // Create directory if it doesn't exist
 if (!fs.existsSync(volumeDir)) {
@@ -25,14 +26,14 @@ files.forEach(file => {
     try {
       const data = fs.readFileSync(gitPath, 'utf8');
       fs.writeFileSync(volumePath, data, 'utf8');
-      console.log(`✓ Initialized ${file}`);
+      console.error(`[INIT] ✓ Initialized ${file}`);
     } catch (e) {
-      console.error(`✗ Failed to copy ${file}:`, e.message);
+      console.error(`[INIT] ✗ Failed to copy ${file}:`, e.message);
     }
   } else if (fs.existsSync(volumePath)) {
-    console.log(`✓ ${file} already exists on volume`);
+    console.error(`[INIT] ✓ ${file} already exists on volume`);
   } else {
-    console.log(`? ${file} source not found, will be created on first use`);
+    console.error(`[INIT] ? ${file} source not found, will be created on first use`);
   }
 });
 
@@ -40,7 +41,7 @@ files.forEach(file => {
 const invoicesDir = path.join(volumeDir, 'invoices');
 if (!fs.existsSync(invoicesDir)) {
   fs.mkdirSync(invoicesDir, { recursive: true });
-  console.log('✓ Created invoices directory');
+  console.error('[INIT] ✓ Created invoices directory');
 }
 
-console.log('✓ Volume initialization complete\n');
+console.error('[INIT] ✓ Volume initialization complete\n');
