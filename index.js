@@ -1012,28 +1012,27 @@ function startDashboard() {
   });
 
   const port = process.env.PORT || config.DASHBOARD_PORT;
-  console.log(`[INIT] Binding to port ${port}...`);
+  console.log(`[INIT] PORT env: ${process.env.PORT}, DASHBOARD_PORT config: ${config.DASHBOARD_PORT}, final: ${port}`);
   process.stderr.write(`[INIT] Binding to port ${port}... (stderr)\n`);
-  const server = app.listen(port, '0.0.0.0', () => {
-    console.log(`[INIT] Successfully listening on port ${port}`);
-    process.stderr.write(`[INIT] Successfully listening on port ${port} (stderr)\n`);
-    const ip = getLocalIP();
-    dashboardUrl = process.env.RAILWAY_STATIC_URL
-      ? `https://${process.env.RAILWAY_STATIC_URL}`
-      : `http://${ip}:${port}`;
-    console.log(`\n📊 Dashboard running at:`);
-    console.log(`   Local:   http://localhost:${port}`);
-    if (process.env.RAILWAY_STATIC_URL) {
-      console.log(`   Live:    https://${process.env.RAILWAY_STATIC_URL}`);
-    } else {
-      console.log(`   Network: ${dashboardUrl}  (open on any phone on same WiFi)`);
-    }
-    console.log();
-  });
-  server.on('error', (err) => {
-    console.error(`[INIT] Server error:`, err);
-    process.stderr.write(`[INIT] Server error: ${err.message}\n`);
-  });
+  
+  try {
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`[INIT] ✅ Server bound successfully on port ${port}`);
+      const ip = getLocalIP();
+      dashboardUrl = process.env.RAILWAY_STATIC_URL
+        ? `https://${process.env.RAILWAY_STATIC_URL}`
+        : `http://${ip}:${port}`;
+      console.log(`📊 Dashboard: ${dashboardUrl}`);
+    });
+    server.on('error', (err) => {
+      console.error(`[INIT] Server error: ${err.code} - ${err.message}`);
+      process.stderr.write(`[INIT] Server error: ${err.message}\n`);
+    });
+  } catch (listenErr) {
+    console.error(`[INIT] app.listen() error: ${listenErr.message}`);
+    process.stderr.write(`[INIT] app.listen() error: ${listenErr.message}\n`);
+    throw listenErr;
+  }
 }
 
 function getMonthlyStats(all) {
