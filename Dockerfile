@@ -68,4 +68,5 @@ RUN mkdir -p /app/data && \
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node init-volume.js && node index.js"]
+RUN chmod +x start.sh
+CMD ["./start.sh"]
