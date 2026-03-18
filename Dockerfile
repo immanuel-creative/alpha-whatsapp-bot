@@ -2,6 +2,7 @@ FROM node:20-slim
 
 # Install Google Chrome (the proper way for Railway / Linux amd64)
 RUN apt-get update && apt-get install -y \
+    curl \
     wget \
     gnupg \
     ca-certificates \
