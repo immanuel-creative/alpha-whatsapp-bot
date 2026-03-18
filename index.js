@@ -951,7 +951,9 @@ function startDashboard() {
 
   // ── API: Bot status ──
   app.get('/api/status', (req, res) => {
-    res.json({ ready: botReady, hasQR: !!latestQR, paused: botPaused });
+    // Railway health check — return 200 OK as long as the app is running.
+    // The bot may still be initializing, but the app itself is healthy.
+    res.status(200).json({ ready: botReady, hasQR: !!latestQR, paused: botPaused });
   });
 
   // ── API: Pause / Resume ──
