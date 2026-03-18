@@ -1108,11 +1108,13 @@ process.on('SIGINT', async () => {
 });
 
 // Final safety: if anything goes wrong, keep the process alive
+let lastWatchdog = Date.now();
 setInterval(() => {
-  if (process.uptime() < 5) {
-    console.log('[KEEPALIVE] Process just started, monitoring...');
-  }
-}, 30000);
+  const now = Date.now();
+  const elapsed = (now - lastWatchdog) / 1000;
+  lastWatchdog = now;
+  console.log(`[WATCHDOG] Still alive - uptime: ${Math.floor(process.uptime())}s, botReady: ${botReady}, elapsed since last check: ${elapsed.toFixed(1)}s`);
+}, 5000);
 
 console.log('[INIT] ✅ Index.js loaded successfully - all startup code executed');
 
