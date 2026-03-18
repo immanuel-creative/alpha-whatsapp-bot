@@ -57,16 +57,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Cache bust: 2026-03-18-v5
+# Cache bust: 2026-03-18-v10
 COPY . .
 
 # Create seed data directory (volume will be mounted at /app/data, shadowing it)
 # So we copy seed data to /app/data_seed/ instead
 # The init-volume.js script will copy from here on first run
+# Use conditional copies to handle missing files gracefully
 RUN mkdir -p /app/data_seed && \
-    cp data/clients.json /app/data_seed/ && \
-    cp data/invoice-counter.json /app/data_seed/ && \
-    cp data/invoiced-messages.json /app/data_seed/
+    (cp data/clients.json /app/data_seed/ 2>/dev/null || echo "No clients.json found") && \
+    (cp data/invoice-counter.json /app/data_seed/ 2>/dev/null || echo "No invoice-counter.json found") && \
+    (cp data/invoiced-messages.json /app/data_seed/ 2>/dev/null || echo "No invoiced-messages.json found")
 
 EXPOSE 3000
 
