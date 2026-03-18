@@ -59,8 +59,12 @@ RUN npm ci --omit=dev
 # Cache bust: 2026-03-18
 COPY . .
 
-# Create the data folder so it exists on first boot
-RUN mkdir -p /app/data
+# Create the data folder and copy initial data files
+RUN mkdir -p /app/data && \
+    if [ -f data/clients.json ]; then cp data/clients.json /app/data/; fi && \
+    if [ -f data/invoice-counter.json ]; then cp data/invoice-counter.json /app/data/; fi && \
+    if [ -f data/invoiced-messages.json ]; then cp data/invoiced-messages.json /app/data/; fi && \
+    mkdir -p /app/data/invoices
 
 EXPOSE 3000
 
