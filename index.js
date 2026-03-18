@@ -60,7 +60,6 @@ const client = new Client({
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',                    // Important for containers
-      '--single-process',               // Reduces memory usage significantly
       '--disable-gpu',
       '--disable-extensions',
       '--disable-background-networking',
@@ -1125,12 +1124,7 @@ process.on('exit', (code) => {
   if (code !== 0) process.exitCode = 0;  // Don't actually exit on error
 });
 
-const originalExit = process.exit;
-process.exit = function(code) {
-  console.error(`❌ process.exit(${code}) called - BLOCKING IT`);
-  // Don't actually exit
-  return originalExit;
-};
+
 
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down...');
