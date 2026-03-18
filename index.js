@@ -1053,7 +1053,11 @@ async function startWhatsApp() {
   }
 }
 
-startWhatsApp();
+console.log('[INIT] About to call startWhatsApp...');
+startWhatsApp().catch(err => {
+  console.error('[INIT] startWhatsApp error:', err);
+});
+console.log('[INIT] startWhatsApp() called (async)');
 
 // ─── Global Safety Net ─────────────────────────────────────────
 // Keeps the process alive even if something unexpected crashes.
