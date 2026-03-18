@@ -88,6 +88,39 @@ client.on('qr', (qr) => {
 
 client.on('loading_screen', (pct) => process.stdout.write(`\r⏳ Loading... ${pct}%`));
 
+// ─── Helper: Find Group Chat with Retry Logic ──────────────────
+
+async function findGroupChat() {
+  const GROUP_NAME = config.GROUP_NAME;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      console.log(`[GROUP] Looking for group chat (attempt ${attempt}/5)...`);
+      const chats = await Promise.race([
+        client.getChats(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('getChats timeout')), 30000))
+      ]);
+      const found = chats.find(c => c.isGroup && c.name === GROUP_NAME);
+      if (found) {
+        groupChat = found;
+        console.log(`[GROUP] ✅ Found group: "${found.name}"`);
+        return true;
+      } else {
+        console.warn(`[GROUP] Group "${GROUP_NAME}" not found in ${chats.length} chats`);
+        return false;
+      }
+    } catch (err) {
+      console.warn(`[GROUP] Attempt ${attempt} failed: ${err.message}`);
+      if (attempt < 5) {
+        const delay = attempt * 15000; // 15s, 30s, 45s, 60s, 75s
+        console.log(`[GROUP] Retrying in ${delay/1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  console.error('[GROUP] Failed to find group after 5 attempts');
+  return false;
+}
+
 // ─── Ready ─────────────────────────────────────────────────────
 
 client.on('ready', async () => {
@@ -95,16 +128,29 @@ client.on('ready', async () => {
   botReady = true;
 
   try {
-    const chats = await Promise.race([
-      client.getChats(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('getChats timeout')), 10000))
-    ]);
-    groupChat = chats.find(c => c.name === config.GROUP_NAME);
+    // Try to find group chat with retry logic
+    const found = await findGroupChat();
 
     if (groupChat) {
       console.log(`📍 Monitoring: "${config.GROUP_NAME}"`);
     } else {
-      console.error(`\n❌ Group "${config.GROUP_NAME}" not found! Check config.js\n`);
+      console.error(`\n⚠️  Group "${config.GROUP_NAME}" not found yet. Will retry every 2 minutes...\n`);
+      
+      // Background retry: check every 2 minutes
+      const retryInterval = setInterval(async () => {
+        if (groupChat) {
+          console.log('[GROUP] ✅ Group found during background retry!');
+          clearInterval(retryInterval);
+          return;
+        }
+        if (!botReady) {
+          clearInterval(retryInterval);
+          return;
+        }
+        console.log('[GROUP] Background retry: looking for group chat...');
+        const ok = await findGroupChat();
+        if (ok) clearInterval(retryInterval);
+      }, 2 * 60 * 1000);
     }
 
     cron.schedule(config.MORNING_BRIEFING_CRON, sendMorningBriefing, { timezone: config.TIMEZONE });
