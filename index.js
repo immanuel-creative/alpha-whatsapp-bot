@@ -51,18 +51,26 @@ const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'alpha-bot', dataPath: AUTH_PATH }),
   puppeteer: {
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     protocolTimeout: 180000,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
+      '--disable-dev-shm-usage',        // Critical - prevents OOM crashes
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',                    // Important for containers
+      '--single-process',               // Reduces memory usage significantly
       '--disable-gpu',
       '--disable-extensions',
       '--disable-background-networking',
-      '--disable-default-apps',
-      '--no-first-run',
+      '--disable-default-browser-check',
+      '--disable-sync',
+      '--disable-translate',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--safebrowsing-disable-auto-update',
+      '--disable-web-resources',
     ],
   },
 });
