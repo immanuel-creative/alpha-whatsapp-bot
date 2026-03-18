@@ -56,8 +56,8 @@ function parseClientEntry(text) {
   // ── Multi-line format ──────────────────────────────────────
   for (const line of lines) {
 
-    // Labeled: "Client: Name" / "Name: X" / "Client Name" (no colon)
-    const clientMatch = line.match(/^(?:client|name|naam|customer)\s*:?\s*(.+)$/i);
+    // Labeled: "Client: Name" / "Name: X"
+    const clientMatch = line.match(/^(?:client|name|naam|customer)\s*:\s*(.+)$/i);
     if (clientMatch) { clientName = clientMatch[1].trim(); continue; }
 
     // Labeled phone: "Ph: +60..." / "Phone:" / "No:" / "Mob:" / "HP:"
@@ -87,11 +87,6 @@ function parseClientEntry(text) {
       clientName = line;
       continue;
     }
-  }
-
-  // Clean up accidental label prefix (e.g. "Client Manassa" → "Manassa")
-  if (clientName) {
-    clientName = clientName.replace(/^(client|name|naam|customer)\s+/i, '').trim();
   }
 
   if (!clientName || !phone) return null;

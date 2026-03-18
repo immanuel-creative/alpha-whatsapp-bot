@@ -667,20 +667,28 @@ function startDashboard() {
       }
     }
 
-    const tenDaysAgo = Math.floor((Date.now() - 10 * 24 * 60 * 60 * 1000) / 1000);
+    // "Past week including today" — from midnight KL time today, going back 7 days
+    const now = new Date();
+    // Start of today in KL time (UTC+8)
+    const klOffset = 8 * 60 * 60 * 1000;
+    const startOfTodayKL = new Date(Math.floor((now.getTime() + klOffset) / 86400000) * 86400000 - klOffset);
+    const weekAgo = new Date(startOfTodayKL.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const sinceTs = Math.floor(weekAgo.getTime() / 1000);
+
+    console.log(`[SCAN-BACKLOG] Scanning from ${weekAgo.toISOString()} (past 7 days incl. today)`);
 
     let messages;
     try {
-      messages = await groupChat.fetchMessages({ limit: 1000 });
+      messages = await groupChat.fetchMessages({ limit: 2000 });
     } catch (err) {
       return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
     }
 
-    const recent = messages.filter(m => m.timestamp >= tenDaysAgo);
-    console.log(`[SCAN-BACKLOG] Scanning ${recent.length} messages from last 10 days`);
+    const recent = messages.filter(m => m.timestamp >= sinceTs);
+    console.log(`[SCAN-BACKLOG] ${recent.length} messages in past 7 days (of ${messages.length} fetched)`);
 
-    // ── Step 1: Regex parser (fast, handles standard formats) ────
-    const regexFound = new Map(); // phone digits → client info
+    // ── Step 1: Regex parser (fast, standard formats) ────────────
+    const merged = new Map(); // digits → client info
 
     for (const m of recent) {
       let clientName, phone, role = '', roleAbbrev = '';
@@ -711,48 +719,46 @@ function startDashboard() {
 
       if (!phone) continue;
       const digits = phone.replace(/\D/g, '');
-      if (!regexFound.has(digits)) {
-        regexFound.set(digits, { clientName: clientName || 'Unknown', phone, role, roleAbbrev });
+      if (!merged.has(digits)) {
+        merged.set(digits, { clientName: clientName || 'Unknown', phone, role, roleAbbrev });
       }
     }
 
-    // ── Step 2: AI extraction (catches non-standard formats) ────
+    console.log(`[SCAN-BACKLOG] Regex found ${merged.size} unique numbers`);
+
+    // ── Step 2: AI extraction with hard 25s timeout ──────────────
     const chatTexts = recent
       .filter(m => m.type === 'chat' && m.body && m.body.trim().length > 5)
       .map(m => m.body.trim());
 
-    let aiFound = [];
     try {
-      aiFound = await ai.extractClientsFromMessages(chatTexts);
-      console.log(`[SCAN-BACKLOG] AI found ${aiFound.length} potential entries`);
+      const aiResult = await Promise.race([
+        ai.extractClientsFromMessages(chatTexts),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 25000)),
+      ]);
+      let aiAdded = 0;
+      for (const c of aiResult) {
+        if (!c.phone) continue;
+        const digits = c.phone.replace(/\D/g, '');
+        if (!merged.has(digits)) {
+          merged.set(digits, { clientName: c.clientName || 'Unknown', phone: c.phone, role: c.role || '', roleAbbrev: c.roleAbbrev || '' });
+          aiAdded++;
+        }
+      }
+      console.log(`[SCAN-BACKLOG] AI added ${aiAdded} extra entries`);
     } catch (err) {
-      console.error('[SCAN-BACKLOG] AI extraction failed:', err.message);
+      console.warn(`[SCAN-BACKLOG] AI extraction skipped: ${err.message}`);
     }
 
-    // ── Step 3: Merge regex + AI results ─────────────────────────
-    const merged = new Map(regexFound); // start with regex results
-    for (const c of aiFound) {
-      if (!c.phone) continue;
-      const digits = c.phone.replace(/\D/g, '');
-      if (!merged.has(digits)) {
-        merged.set(digits, {
-          clientName: c.clientName || 'Unknown',
-          phone: c.phone,
-          role: c.role || '',
-          roleAbbrev: c.roleAbbrev || '',
-        });
+    // ── Step 3: Cross-check tracker ──────────────────────────────
+    const unsent = [];
+    for (const [, c] of merged) {
+      if (!tracker.getByPhone(c.phone)) {
+        unsent.push(c);
       }
     }
 
-    // ── Step 4: Cross-check tracker — only show NOT yet sent ────
-    const unsent = [];
-    for (const [digits, c] of merged) {
-      const existing = tracker.getByPhone(c.phone);
-      if (existing) continue; // Already in tracker = already processed
-      unsent.push(c);
-    }
-
-    console.log(`[SCAN-BACKLOG] ${unsent.length} clients not yet sent profile/form (regex: ${regexFound.size}, AI: ${aiFound.length})`);
+    console.log(`[SCAN-BACKLOG] ${unsent.length} clients not yet sent profile/form`);
     res.json({ clients: unsent, total: unsent.length });
   });
   app.post('/api/scan-backlog', async (req, res) => {

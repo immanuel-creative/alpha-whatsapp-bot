@@ -700,7 +700,20 @@ async function scanBacklog() {
   if (old) old.remove();
 
   try {
-    const r = await fetch('/api/scan-backlog');
+    const controller = new AbortController();
+    const scanTimeout = setTimeout(() => controller.abort(), 40000);
+    let r;
+    try {
+      r = await fetch('/api/scan-backlog', { signal: controller.signal });
+    } catch (fetchErr) {
+      if (fetchErr.name === 'AbortError') {
+        toast('⏱ Scan timed out — try again', 4000);
+        return;
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(scanTimeout);
+    }
     if (r.status === 503) { toast('❌ WhatsApp not connected — scan QR first', 4000); return; }
     const d = await r.json();
     if (d.error) { toast('❌ ' + d.error, 4000); return; }
