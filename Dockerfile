@@ -73,5 +73,6 @@ EXPOSE 3000
 # HEALTHCHECK REMOVED - Railway will check TCP connectivity on port 3000 instead
 # This is more reliable during WhatsApp initialization which can timeout HTTP requests
 
-RUN chmod +x start.sh
-CMD ["./start.sh"]
+# CMD is overridden by railway.toml startCommand: node index.js
+# But we'll set a sensible default just in case
+CMD ["node", "index.js"]
