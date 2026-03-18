@@ -1013,8 +1013,10 @@ function startDashboard() {
 
   const port = process.env.PORT || config.DASHBOARD_PORT;
   console.log(`[INIT] Binding to port ${port}...`);
-  app.listen(port, '0.0.0.0', () => {
+  process.stderr.write(`[INIT] Binding to port ${port}... (stderr)\n`);
+  const server = app.listen(port, '0.0.0.0', () => {
     console.log(`[INIT] Successfully listening on port ${port}`);
+    process.stderr.write(`[INIT] Successfully listening on port ${port} (stderr)\n`);
     const ip = getLocalIP();
     dashboardUrl = process.env.RAILWAY_STATIC_URL
       ? `https://${process.env.RAILWAY_STATIC_URL}`
@@ -1027,6 +1029,10 @@ function startDashboard() {
       console.log(`   Network: ${dashboardUrl}  (open on any phone on same WiFi)`);
     }
     console.log();
+  });
+  server.on('error', (err) => {
+    console.error(`[INIT] Server error:`, err);
+    process.stderr.write(`[INIT] Server error: ${err.message}\n`);
   });
 }
 
@@ -1052,8 +1058,15 @@ function fmtCsvDate(isoString) {
 // Dashboard ALWAYS starts first — so Railway health checks pass
 // even if WhatsApp / Chrome haven't connected yet.
 console.log('[INIT] Calling startDashboard...');
-startDashboard();
-console.log('[INIT] startDashboard() completed (listening on port)');
+process.stderr.write('[INIT] Calling startDashboard (stderr)\n');
+try {
+  startDashboard();
+  console.log('[INIT] startDashboard() completed (listening on port)');
+  process.stderr.write('[INIT] startDashboard() completed (stderr)\n');
+} catch (dashboardErr) {
+  console.error('[INIT] startDashboard() ERROR:', dashboardErr);
+  process.stderr.write(`[INIT] startDashboard() ERROR: ${dashboardErr.message}\n`);
+}
 
 function clearBrowserLocks() {
   // Remove stale Chromium singleton lock files so retries don't get blocked
