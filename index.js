@@ -666,6 +666,8 @@ function startDashboard() {
       }
     }
 
+    const tenDaysAgo = Math.floor((Date.now() - 10 * 24 * 60 * 60 * 1000) / 1000); // unix timestamp
+
     let messages;
     try {
       messages = await groupChat.fetchMessages({ limit: 1000 });
@@ -673,10 +675,14 @@ function startDashboard() {
       return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
     }
 
+    // Only look at last 10 days
+    const recent = messages.filter(m => m.timestamp >= tenDaysAgo);
+    console.log(`[SCAN-BACKLOG] ${recent.length} messages in last 10 days (of ${messages.length} fetched)`);
+
     const found = [];
     const seen  = new Set();
 
-    for (const m of messages) {
+    for (const m of recent) {
       let clientName, phone, role = '', roleAbbrev = '';
 
       if (m.type === 'chat' && m.body) {
@@ -687,7 +693,7 @@ function startDashboard() {
         role       = entry.role || '';
         roleAbbrev = entry.roleAbbrev || '';
       } else if (m.type === 'vcard' && m.body) {
-        const fnMatch  = m.body.match(/^FN:(.+)$/m);
+        const fnMatch = m.body.match(/^FN:(.+)$/m);
         if (fnMatch) clientName = fnMatch[1].trim();
         const waidMatch = m.body.match(/waid=(\d+)/);
         if (waidMatch) {
@@ -709,23 +715,14 @@ function startDashboard() {
       if (seen.has(digits)) continue;
       seen.add(digits);
 
+      // Only show if NOT already in tracker (already in tracker = already processed/sent)
       const existing = tracker.getByPhone(phone);
-      // "Not sent" = not in tracker at all, OR status is still 'new' (message never went out)
-      const notSent = !existing || existing.status === 'new';
+      if (existing) continue; // Already sent — skip
 
-      if (notSent) {
-        found.push({
-          clientName: clientName || existing?.clientName || 'Unknown',
-          phone,
-          role,
-          roleAbbrev,
-          inTracker: !!existing,
-          status: existing?.status || null,
-        });
-      }
+      found.push({ clientName: clientName || 'Unknown', phone, role, roleAbbrev });
     }
 
-    console.log(`[SCAN-BACKLOG] Found ${found.length} clients without profile/form sent`);
+    console.log(`[SCAN-BACKLOG] ${found.length} clients NOT yet sent profile/form`);
     res.json({ clients: found, total: found.length });
   });
 
