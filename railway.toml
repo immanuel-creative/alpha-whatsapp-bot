@@ -3,5 +3,5 @@ builder = "dockerfile"
 
 [deploy]
 restartPolicyType = "always"
-startCommand = "node index.js"
+startCommand = "node test-server.js"
 port = 3000
