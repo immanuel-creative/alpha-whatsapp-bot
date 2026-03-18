@@ -48,7 +48,7 @@ RUN apt-get update && apt-get install -y \
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable \
-    WWEBJS_AUTH_PATH=/app/.wwebjs_auth \
+    WWEBJS_AUTH_PATH=/app/data \
     NODE_ENV=production
 
 WORKDIR /app
@@ -59,8 +59,8 @@ RUN npm ci --omit=dev
 # Cache bust: 2026-03-18
 COPY . .
 
-# Create the WhatsApp session folder so it exists on first boot
-RUN mkdir -p /app/.wwebjs_auth
+# Create the data folder so it exists on first boot
+RUN mkdir -p /app/data
 
 EXPOSE 3000
 
