@@ -1069,13 +1069,11 @@ async function startWhatsApp() {
   }
 }
 
-// TEMPORARILY DISABLED FOR DEBUGGING - check if WhatsApp is the culprit
-// console.log('[INIT] About to call startWhatsApp...');
-// startWhatsApp().catch(err => {
-//   console.error('[INIT] startWhatsApp error:', err);
-// });
-// console.log('[INIT] startWhatsApp() called (async)');
-console.log('[INIT] ⚠️  WhatsApp initialization DISABLED FOR TESTING');
+console.log('[INIT] About to call startWhatsApp...');
+startWhatsApp().catch(err => {
+  console.error('[INIT] startWhatsApp error:', err);
+});
+console.log('[INIT] startWhatsApp() called (async)');
 
 // ─── Global Safety Net ─────────────────────────────────────────
 // Keeps the process alive even if something unexpected crashes.
@@ -1100,3 +1098,9 @@ setInterval(() => {
     console.log('[KEEPALIVE] Process just started, monitoring...');
   }
 }, 30000);
+
+console.log('[INIT] ✅ Index.js loaded successfully - all startup code executed');
+
+// Send a signal that the app is ready
+console.log('READY');
+process.stdout.write('');
