@@ -5,4 +5,3 @@ builder = "dockerfile"
 restartPolicyType = "always"
 startCommand = "node index.js"
 port = 3000
-healthchecks = { http = "/" }
