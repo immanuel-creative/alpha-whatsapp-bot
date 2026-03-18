@@ -507,7 +507,14 @@ function startDashboard() {
 
   // ── Root route (for Railway health checks) ──
   app.get('/', (req, res) => {
-    res.json({ status: 'ok', ready: botReady });
+    console.log('[HTTP] GET / - health check');
+    res.status(200).json({ alive: true, timestamp: new Date().toISOString() });
+  });
+
+  // ── Health endpoint ──
+  app.get('/health', (req, res) => {
+    console.log('[HTTP] GET /health');
+    res.status(200).json({ status: 'healthy', botReady, uptime: process.uptime() });
   });
 
   // ── API: Get all clients ──
@@ -1020,24 +1027,23 @@ function startDashboard() {
   console.log(`[INIT] PORT env: ${process.env.PORT}, DASHBOARD_PORT config: ${config.DASHBOARD_PORT}, final: ${port}`);
   process.stderr.write(`[INIT] Binding to port ${port}... (stderr)\n`);
   
-  try {
-    const server = app.listen(port, '0.0.0.0', () => {
-      console.log(`[INIT] ✅ Server bound successfully on port ${port}`);
-      const ip = getLocalIP();
-      dashboardUrl = process.env.RAILWAY_STATIC_URL
-        ? `https://${process.env.RAILWAY_STATIC_URL}`
-        : `http://${ip}:${port}`;
-      console.log(`📊 Dashboard: ${dashboardUrl}`);
-    });
-    server.on('error', (err) => {
-      console.error(`[INIT] Server error: ${err.code} - ${err.message}`);
-      process.stderr.write(`[INIT] Server error: ${err.message}\n`);
-    });
-  } catch (listenErr) {
-    console.error(`[INIT] app.listen() error: ${listenErr.message}`);
-    process.stderr.write(`[INIT] app.listen() error: ${listenErr.message}\n`);
-    throw listenErr;
-  }
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`[INIT] ✅ Server bound successfully on port ${port}`);
+    process.stderr.write(`[INIT-STDERR] ✅ Server bound on ${port}\n`);
+    const ip = getLocalIP();
+    dashboardUrl = process.env.RAILWAY_STATIC_URL
+      ? `https://${process.env.RAILWAY_STATIC_URL}`
+      : `http://${ip}:${port}`;
+    console.log(`📊 Dashboard: ${dashboardUrl}`);
+  });
+  
+  server.on('error', (err) => {
+    console.error(`[ERROR] Server error: ${err.code} - ${err.message}`);
+  });
+  
+  server.on('clientError', (err) => {
+    console.error(`[ERROR] Client error: ${err.message}`);
+  });
 }
 
 function getMonthlyStats(all) {
