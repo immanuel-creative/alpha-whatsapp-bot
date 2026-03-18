@@ -2,7 +2,6 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "node index.js"
-healthcheckPath = "/api/stats"
-healthcheckTimeout = 30
+healthcheckPath = "/api/status"
+healthcheckTimeout = 120
 restartPolicyType = "always"
