@@ -332,16 +332,9 @@ async function handlePrivateReply(message) {
 
   const record = tracker.getByPhone(phone);
 
-  // Unknown number — AI-generated contextual reply
+  // Unknown number — no action (not a tracked client)
   if (!record) {
-    console.log(`   ↳ Unknown number — generating AI reply...`);
-    try {
-      const reply = await ai.replyToUnknown(message.body);
-      await client.sendMessage(message.from, reply);
-      console.log(`   ↳ AI reply sent to unknown number`);
-    } catch (err) {
-      console.error(`   ↳ AI reply failed:`, err.message);
-    }
+    console.log(`   ↳ Unknown number ${phone} — no action (not a tracked client)`);
     return;
   }
 
@@ -379,17 +372,7 @@ async function handlePrivateReply(message) {
     await safeGroupSend(groupAlert);
   }
 
-  // 2. AI-generated reply back to the client
-  if (botPaused) { console.log(`⏸️  [PAUSED] Blocked reply to ${record.clientName}`); return; }
-  const replyDigits = record.phone.replace(/\D/g, '');
-  if (BLOCKED_NUMBERS.has(replyDigits)) { console.log(`🚫 [BLOCKED] Suppressed reply to ${record.clientName} (${record.phone})`); return; }
-  try {
-    const reply = await ai.replyToClient(record.clientName, record.role, message.body);
-    await client.sendMessage(message.from, reply);
-    console.log(`   ↳ AI reply sent to ${record.clientName}`);
-  } catch (err) {
-    console.error(`   ↳ AI reply FAILED for ${record.clientName}:`, err.message);
-  }
+  // No private reply to client — all communications go through group only
 }
 
 // ─── Process Client Entry ──────────────────────────────────────
@@ -614,12 +597,128 @@ function startDashboard() {
   // ── API: Scan backlog — find uncovered clients from the group ──
   // POST /api/scan-backlog
   // Optional body: { "since": "2026-03-02" }  (defaults to last Monday)
+  // ── API: Scan backlog (GET) — returns list of clients who haven't received profile+form ──
+  app.get('/api/scan-backlog', async (req, res) => {
+    if (!botReady || !groupChat) {
+      return res.status(503).json({ error: 'WhatsApp not connected or group not found.' });
+    }
+
+    let messages;
+    try {
+      messages = await groupChat.fetchMessages({ limit: 1000 });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
+    }
+
+    const found = [];
+    const seen  = new Set();
+
+    for (const m of messages) {
+      let clientName, phone, role = '', roleAbbrev = '';
+
+      if (m.type === 'chat' && m.body) {
+        const entry = parser.parseClientEntry(m.body);
+        if (!entry) continue;
+        clientName = entry.clientName;
+        phone      = entry.phone;
+        role       = entry.role || '';
+        roleAbbrev = entry.roleAbbrev || '';
+      } else if (m.type === 'vcard' && m.body) {
+        const fnMatch  = m.body.match(/^FN:(.+)$/m);
+        if (fnMatch) clientName = fnMatch[1].trim();
+        const waidMatch = m.body.match(/waid=(\d+)/);
+        if (waidMatch) {
+          phone = '+' + waidMatch[1];
+        } else {
+          const telMatch = m.body.match(/^TEL[^:]*:([+\d\s\-().]+)/m);
+          if (telMatch) {
+            const digits = telMatch[1].replace(/[\s\-().]/g, '');
+            phone = digits.startsWith('+') ? digits : '+' + digits;
+          }
+        }
+        if (!clientName || !phone) continue;
+      } else {
+        continue;
+      }
+
+      if (!phone) continue;
+      const digits = phone.replace(/\D/g, '');
+      if (seen.has(digits)) continue;
+      seen.add(digits);
+
+      const existing = tracker.getByPhone(phone);
+      // "Not sent" = not in tracker at all, OR status is still 'new' (message never went out)
+      const notSent = !existing || existing.status === 'new';
+
+      if (notSent) {
+        found.push({
+          clientName: clientName || existing?.clientName || 'Unknown',
+          phone,
+          role,
+          roleAbbrev,
+          inTracker: !!existing,
+          status: existing?.status || null,
+        });
+      }
+    }
+
+    console.log(`[SCAN-BACKLOG] Found ${found.length} clients without profile/form sent`);
+    res.json({ clients: found, total: found.length });
+  });
+
   app.post('/api/scan-backlog', async (req, res) => {
     if (!botReady || !groupChat) {
       return res.status(503).json({ error: 'WhatsApp not connected or group not found.' });
     }
     if (botPaused) {
       return res.status(503).json({ error: 'Bot is paused — resume it before scanning backlog.' });
+    }
+
+    // Handle single client send (from backlog panel "Send →" button)
+    if (req.body && req.body.single) {
+      const { phone, clientName, role, roleAbbrev } = req.body.single;
+      try {
+        const whatsappId  = phone.replace('+', '') + '@c.us';
+        const messageText = msg.initialClientMessage(clientName, 'the team', role || '');
+        const pdfPath     = path.resolve(config.PDF_PATH);
+        if (fs.existsSync(pdfPath)) {
+          const media = MessageMedia.fromFilePath(pdfPath);
+          await client.sendMessage(whatsappId, media, { caption: messageText });
+        } else {
+          await client.sendMessage(whatsappId, messageText);
+        }
+        tracker.upsertClient({ clientName, phone, role: role || '', roleAbbrev: roleAbbrev || '', handledBy: 'Backlog Scan' });
+        console.log(`[SCAN-BACKLOG] Sent to single: ${clientName} (${phone})`);
+        return res.json({ ok: true, summary: `Sent to ${clientName}` });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
+    // Handle send-all from backlog panel list
+    if (req.body && req.body.sendAll && Array.isArray(req.body.sendAll)) {
+      const list = req.body.sendAll;
+      const results = { sent: [], errors: [] };
+      for (const c of list) {
+        try {
+          const whatsappId  = c.phone.replace('+', '') + '@c.us';
+          const messageText = msg.initialClientMessage(c.clientName, 'the team', c.role || '');
+          const pdfPath     = path.resolve(config.PDF_PATH);
+          if (fs.existsSync(pdfPath)) {
+            const media = MessageMedia.fromFilePath(pdfPath);
+            await client.sendMessage(whatsappId, media, { caption: messageText });
+          } else {
+            await client.sendMessage(whatsappId, messageText);
+          }
+          tracker.upsertClient({ clientName: c.clientName, phone: c.phone, role: c.role || '', roleAbbrev: c.roleAbbrev || '', handledBy: 'Backlog Scan' });
+          results.sent.push(c.clientName);
+          await new Promise(r => setTimeout(r, 1500));
+        } catch (err) {
+          results.errors.push({ name: c.clientName, error: err.message });
+        }
+      }
+      const summary = `${results.sent.length} sent, ${results.errors.length} errors`;
+      return res.json({ ok: true, summary, ...results });
     }
 
     // Default: last Monday (March 2, 2026) 00:00 Malaysia time (UTC+8)
