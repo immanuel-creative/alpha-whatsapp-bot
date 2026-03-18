@@ -29,6 +29,77 @@ let dashboardUrl = null;
 let latestQR     = null;   // stored so /qr page can show it
 let botPaused    = false;  // when true, bot receives but sends NOTHING
 
+// ─── Backlog cache (auto-refreshes every 20 min when bot ready) ─
+let backlogCache = null;       // { clients: [], fetchedAt: Date }
+let backlogScanRunning = false;
+
+async function runBacklogScan() {
+  if (!botReady || !groupChat || backlogScanRunning) return;
+  backlogScanRunning = true;
+  console.log('[BACKLOG-CACHE] Running background scan...');
+  try {
+    const now = new Date();
+    const klOffset = 8 * 60 * 60 * 1000;
+    const startOfTodayKL = new Date(Math.floor((now.getTime() + klOffset) / 86400000) * 86400000 - klOffset);
+    const weekAgo = new Date(startOfTodayKL.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const sinceTs = Math.floor(weekAgo.getTime() / 1000);
+
+    const messages = await groupChat.fetchMessages({ limit: 2000 });
+    const recent = messages.filter(m => m.timestamp >= sinceTs);
+    console.log(`[BACKLOG-CACHE] ${recent.length} messages in past 7 days`);
+
+    const merged = new Map();
+    for (const m of recent) {
+      let clientName, phone, role = '', roleAbbrev = '';
+      if (m.type === 'chat' && m.body) {
+        const entry = parser.parseClientEntry(m.body);
+        if (!entry) continue;
+        clientName = entry.clientName; phone = entry.phone;
+        role = entry.role || ''; roleAbbrev = entry.roleAbbrev || '';
+      } else if (m.type === 'vcard' && m.body) {
+        const fnMatch = m.body.match(/^FN:(.+)$/m);
+        if (fnMatch) clientName = fnMatch[1].trim();
+        const waidMatch = m.body.match(/waid=(\d+)/);
+        if (waidMatch) phone = '+' + waidMatch[1];
+        else {
+          const telMatch = m.body.match(/^TEL[^:]*:([+\d\s\-().]+)/m);
+          if (telMatch) { const d = telMatch[1].replace(/[\s\-().]/g, ''); phone = d.startsWith('+') ? d : '+' + d; }
+        }
+        if (!clientName || !phone) continue;
+      } else continue;
+      if (!phone) continue;
+      const digits = phone.replace(/\D/g, '');
+      if (!merged.has(digits)) merged.set(digits, { clientName: clientName || 'Unknown', phone, role, roleAbbrev });
+    }
+
+    const chatTexts = recent.filter(m => m.type === 'chat' && m.body && m.body.trim().length > 5).map(m => m.body.trim());
+    try {
+      const aiResult = await Promise.race([
+        ai.extractClientsFromMessages(chatTexts),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 25000)),
+      ]);
+      let aiAdded = 0;
+      for (const c of aiResult) {
+        if (!c.phone) continue;
+        const digits = c.phone.replace(/\D/g, '');
+        if (!merged.has(digits)) { merged.set(digits, { clientName: c.clientName || 'Unknown', phone: c.phone, role: c.role || '', roleAbbrev: c.roleAbbrev || '' }); aiAdded++; }
+      }
+      console.log(`[BACKLOG-CACHE] AI added ${aiAdded} extra entries`);
+    } catch (err) { console.warn(`[BACKLOG-CACHE] AI skipped: ${err.message}`); }
+
+    const unsent = [];
+    for (const [, c] of merged) {
+      if (!tracker.getByPhone(c.phone)) unsent.push(c);
+    }
+    backlogCache = { clients: unsent, fetchedAt: new Date() };
+    console.log(`[BACKLOG-CACHE] Done — ${unsent.length} unsent clients cached`);
+  } catch (err) {
+    console.error('[BACKLOG-CACHE] Error:', err.message);
+  } finally {
+    backlogScanRunning = false;
+  }
+}
+
 // Numbers that must never receive any private message from the bot.
 // Add full international format without + e.g. '918758836925'
 const BLOCKED_NUMBERS = new Set([
@@ -167,6 +238,10 @@ client.on('ready', async () => {
     cron.schedule(config.MORNING_BRIEFING_CRON, sendMorningBriefing, { timezone: config.TIMEZONE });
     console.log(`⏰ Morning briefing: ${config.MORNING_BRIEFING_CRON} (${config.TIMEZONE})`);
     if (dashboardUrl) console.log(`📊 Dashboard: ${dashboardUrl}\n`);
+
+    // Kick off first backlog scan 30s after ready, then every 20 minutes
+    setTimeout(runBacklogScan, 30_000);
+    setInterval(runBacklogScan, 20 * 60 * 1000);
   } catch (err) {
     console.error('⚠️  Error in ready handler:', err.message);
     console.log('   Bot is still online, continuing anyway...');
@@ -667,260 +742,100 @@ function startDashboard() {
       }
     }
 
-    // "Past week including today" — from midnight KL time today, going back 7 days
-    const now = new Date();
-    // Start of today in KL time (UTC+8)
-    const klOffset = 8 * 60 * 60 * 1000;
-    const startOfTodayKL = new Date(Math.floor((now.getTime() + klOffset) / 86400000) * 86400000 - klOffset);
-    const weekAgo = new Date(startOfTodayKL.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const sinceTs = Math.floor(weekAgo.getTime() / 1000);
+    const forceRefresh = req.query.refresh === '1';
+    const cacheAgeMs = backlogCache ? (Date.now() - backlogCache.fetchedAt.getTime()) : Infinity;
+    const cacheStale = cacheAgeMs > 25 * 60 * 1000; // stale after 25 min
 
-    console.log(`[SCAN-BACKLOG] Scanning from ${weekAgo.toISOString()} (past 7 days incl. today)`);
-
-    let messages;
-    try {
-      messages = await groupChat.fetchMessages({ limit: 2000 });
-    } catch (err) {
-      return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
+    // If cache is fresh and not forcing refresh, return instantly
+    if (backlogCache && !cacheStale && !forceRefresh) {
+      // Also remove any that have since been sent (tracker was updated)
+      const fresh = backlogCache.clients.filter(c => !tracker.getByPhone(c.phone));
+      console.log(`[SCAN-BACKLOG] Serving cache (${Math.round(cacheAgeMs/60000)}m old) — ${fresh.length} unsent`);
+      return res.json({ clients: fresh, total: fresh.length, cached: true, cachedAgo: Math.round(cacheAgeMs / 60000) });
     }
 
-    const recent = messages.filter(m => m.timestamp >= sinceTs);
-    console.log(`[SCAN-BACKLOG] ${recent.length} messages in past 7 days (of ${messages.length} fetched)`);
-
-    // ── Step 1: Regex parser (fast, standard formats) ────────────
-    const merged = new Map(); // digits → client info
-
-    for (const m of recent) {
-      let clientName, phone, role = '', roleAbbrev = '';
-
-      if (m.type === 'chat' && m.body) {
-        const entry = parser.parseClientEntry(m.body);
-        if (!entry) continue;
-        clientName = entry.clientName;
-        phone      = entry.phone;
-        role       = entry.role || '';
-        roleAbbrev = entry.roleAbbrev || '';
-      } else if (m.type === 'vcard' && m.body) {
-        const fnMatch = m.body.match(/^FN:(.+)$/m);
-        if (fnMatch) clientName = fnMatch[1].trim();
-        const waidMatch = m.body.match(/waid=(\d+)/);
-        if (waidMatch) phone = '+' + waidMatch[1];
-        else {
-          const telMatch = m.body.match(/^TEL[^:]*:([+\d\s\-().]+)/m);
-          if (telMatch) {
-            const d = telMatch[1].replace(/[\s\-().]/g, '');
-            phone = d.startsWith('+') ? d : '+' + d;
-          }
-        }
-        if (!clientName || !phone) continue;
-      } else {
-        continue;
-      }
-
-      if (!phone) continue;
-      const digits = phone.replace(/\D/g, '');
-      if (!merged.has(digits)) {
-        merged.set(digits, { clientName: clientName || 'Unknown', phone, role, roleAbbrev });
-      }
+    // Cache missing or stale — run scan now (but don't block if already running)
+    if (!backlogScanRunning) {
+      runBacklogScan(); // fire and don't await — let it update cache
     }
 
-    console.log(`[SCAN-BACKLOG] Regex found ${merged.size} unique numbers`);
-
-    // ── Step 2: AI extraction with hard 25s timeout ──────────────
-    const chatTexts = recent
-      .filter(m => m.type === 'chat' && m.body && m.body.trim().length > 5)
-      .map(m => m.body.trim());
-
-    try {
-      const aiResult = await Promise.race([
-        ai.extractClientsFromMessages(chatTexts),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 25000)),
-      ]);
-      let aiAdded = 0;
-      for (const c of aiResult) {
-        if (!c.phone) continue;
-        const digits = c.phone.replace(/\D/g, '');
-        if (!merged.has(digits)) {
-          merged.set(digits, { clientName: c.clientName || 'Unknown', phone: c.phone, role: c.role || '', roleAbbrev: c.roleAbbrev || '' });
-          aiAdded++;
-        }
-      }
-      console.log(`[SCAN-BACKLOG] AI added ${aiAdded} extra entries`);
-    } catch (err) {
-      console.warn(`[SCAN-BACKLOG] AI extraction skipped: ${err.message}`);
+    // If we have stale cache, return it immediately while fresh scan runs in background
+    if (backlogCache && !forceRefresh) {
+      const fresh = backlogCache.clients.filter(c => !tracker.getByPhone(c.phone));
+      console.log(`[SCAN-BACKLOG] Returning stale cache while refreshing in background`);
+      return res.json({ clients: fresh, total: fresh.length, cached: true, refreshing: true, cachedAgo: Math.round(cacheAgeMs / 60000) });
     }
 
-    // ── Step 3: Cross-check tracker ──────────────────────────────
-    const unsent = [];
-    for (const [, c] of merged) {
-      if (!tracker.getByPhone(c.phone)) {
-        unsent.push(c);
-      }
+    // No cache at all — wait for first scan (with timeout)
+    console.log(`[SCAN-BACKLOG] No cache yet — waiting for first scan...`);
+    let waited = 0;
+    while (backlogScanRunning && waited < 40000) {
+      await new Promise(r => setTimeout(r, 500));
+      waited += 500;
     }
-
-    console.log(`[SCAN-BACKLOG] ${unsent.length} clients not yet sent profile/form`);
-    res.json({ clients: unsent, total: unsent.length });
+    if (backlogCache) {
+      const fresh = backlogCache.clients.filter(c => !tracker.getByPhone(c.phone));
+      return res.json({ clients: fresh, total: fresh.length, cached: false });
+    }
+    return res.status(503).json({ error: 'Scan still loading — try again in a moment.' });
   });
+  // ── Helper: send profile PDF + form link to one client (30s timeout) ──
+  async function sendProfileToClient(phone, clientName, role, roleAbbrev) {
+    const whatsappId  = phone.replace('+', '') + '@c.us';
+    const messageText = msg.initialClientMessage(clientName, 'the team', role || '');
+    const pdfPath     = path.resolve(config.PDF_PATH);
+    const sendPromise = fs.existsSync(pdfPath)
+      ? client.sendMessage(whatsappId, MessageMedia.fromFilePath(pdfPath), { caption: messageText })
+      : client.sendMessage(whatsappId, messageText);
+    await Promise.race([
+      sendPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('sendMessage timed out after 30s')), 30000)),
+    ]);
+    tracker.upsertClient({ clientName, phone, role: role || '', roleAbbrev: roleAbbrev || '', handledBy: 'Backlog Scan' });
+    // After sending, invalidate cache so next GET reflects the change
+    if (backlogCache) backlogCache.clients = backlogCache.clients.filter(c => c.phone.replace(/\D/g,'') !== phone.replace(/\D/g,''));
+  }
+
   app.post('/api/scan-backlog', async (req, res) => {
-    if (!botReady) {
-      return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
-    }
+    if (!botReady) return res.status(503).json({ error: 'WhatsApp not connected — scan QR first.' });
     if (!groupChat) {
       const found = await ensureGroupChat();
-      if (!found) {
-        return res.status(503).json({ error: 'Connected but still finding your group — wait 15s and try again.' });
-      }
+      if (!found) return res.status(503).json({ error: 'Connected but still finding your group — wait 15s and try again.' });
     }
-    if (botPaused) {
-      return res.status(503).json({ error: 'Bot is paused — resume it before scanning backlog.' });
-    }
+    if (botPaused) return res.status(503).json({ error: 'Bot is paused — resume it before sending.' });
 
-    // Handle single client send (from backlog panel "Send →" button)
+    // ── Single send (backlog panel "Send →" button) ──────────────
     if (req.body && req.body.single) {
       const { phone, clientName, role, roleAbbrev } = req.body.single;
       try {
-        const whatsappId  = phone.replace('+', '') + '@c.us';
-        const messageText = msg.initialClientMessage(clientName, 'the team', role || '');
-        const pdfPath     = path.resolve(config.PDF_PATH);
-        if (fs.existsSync(pdfPath)) {
-          const media = MessageMedia.fromFilePath(pdfPath);
-          await client.sendMessage(whatsappId, media, { caption: messageText });
-        } else {
-          await client.sendMessage(whatsappId, messageText);
-        }
-        tracker.upsertClient({ clientName, phone, role: role || '', roleAbbrev: roleAbbrev || '', handledBy: 'Backlog Scan' });
-        console.log(`[SCAN-BACKLOG] Sent to single: ${clientName} (${phone})`);
-        return res.json({ ok: true, summary: `Sent to ${clientName}` });
+        await sendProfileToClient(phone, clientName, role, roleAbbrev);
+        console.log(`[SCAN-BACKLOG] ✅ Sent to ${clientName} (${phone})`);
+        return res.json({ ok: true });
       } catch (err) {
+        console.error(`[SCAN-BACKLOG] ❌ Failed single send: ${err.message}`);
         return res.status(500).json({ error: err.message });
       }
     }
 
-    // Handle send-all from backlog panel list
+    // ── Send-all (backlog panel "Send to All" button) ────────────
     if (req.body && req.body.sendAll && Array.isArray(req.body.sendAll)) {
       const list = req.body.sendAll;
       const results = { sent: [], errors: [] };
       for (const c of list) {
         try {
-          const whatsappId  = c.phone.replace('+', '') + '@c.us';
-          const messageText = msg.initialClientMessage(c.clientName, 'the team', c.role || '');
-          const pdfPath     = path.resolve(config.PDF_PATH);
-          if (fs.existsSync(pdfPath)) {
-            const media = MessageMedia.fromFilePath(pdfPath);
-            await client.sendMessage(whatsappId, media, { caption: messageText });
-          } else {
-            await client.sendMessage(whatsappId, messageText);
-          }
-          tracker.upsertClient({ clientName: c.clientName, phone: c.phone, role: c.role || '', roleAbbrev: c.roleAbbrev || '', handledBy: 'Backlog Scan' });
+          await sendProfileToClient(c.phone, c.clientName, c.role, c.roleAbbrev);
           results.sent.push(c.clientName);
-          await new Promise(r => setTimeout(r, 1500));
+          console.log(`[SCAN-BACKLOG] ✅ Sent to ${c.clientName}`);
+          await new Promise(r => setTimeout(r, 1500)); // avoid rate-limit
         } catch (err) {
           results.errors.push({ name: c.clientName, error: err.message });
+          console.error(`[SCAN-BACKLOG] ❌ Failed ${c.clientName}: ${err.message}`);
         }
       }
-      const summary = `${results.sent.length} sent, ${results.errors.length} errors`;
-      return res.json({ ok: true, summary, ...results });
+      return res.json({ ok: true, summary: `${results.sent.length} sent, ${results.errors.length} errors`, ...results });
     }
 
-    // Default: last Monday (March 2, 2026) 00:00 Malaysia time (UTC+8)
-    const sinceDate = req.body && req.body.since
-      ? new Date(req.body.since)
-      : new Date('2026-03-02T00:00:00+08:00');
-    const sinceTimestamp = Math.floor(sinceDate.getTime() / 1000);
-
-    console.log(`\n🔍 Scanning backlog since ${sinceDate.toISOString()}...`);
-
-    let messages;
-    try {
-      messages = await groupChat.fetchMessages({ limit: 500 });
-    } catch (err) {
-      return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
-    }
-
-    // Only messages within our time window
-    const inRange = messages.filter(m => m.timestamp >= sinceTimestamp);
-    console.log(`   ${inRange.length} messages in range (out of ${messages.length} fetched)`);
-
-    const results = { sent: [], skipped: [], errors: [] };
-
-    for (const m of inRange) {
-      let clientName = null;
-      let phone      = null;
-      let role       = '';
-      let roleAbbrev = '';
-
-      if (m.type === 'chat' && m.body) {
-        // ── Text message: try to parse as client entry ──────────
-        const entry = parser.parseClientEntry(m.body);
-        if (!entry) continue;
-        clientName = entry.clientName;
-        phone      = entry.phone;
-        role       = entry.role;
-        roleAbbrev = entry.roleAbbrev;
-
-      } else if (m.type === 'vcard' && m.body) {
-        // ── Shared contact (vCard) ──────────────────────────────
-        const vcard = m.body;
-
-        // FN: Full Name
-        const fnMatch = vcard.match(/^FN:(.+)$/m);
-        if (fnMatch) clientName = fnMatch[1].trim();
-
-        // Prefer waid= (WhatsApp ID — clean digits)
-        const waidMatch = vcard.match(/waid=(\d+)/);
-        if (waidMatch) {
-          phone = '+' + waidMatch[1];
-        } else {
-          // Fall back to TEL field
-          const telMatch = vcard.match(/^TEL[^:]*:([+\d\s\-().]+)/m);
-          if (telMatch) {
-            const digits = telMatch[1].replace(/[\s\-().]/g, '');
-            phone = digits.startsWith('+') ? digits : '+' + digits;
-          }
-        }
-
-        if (!clientName || !phone) continue;
-
-      } else {
-        continue; // ignore stickers, images, audio, etc.
-      }
-
-      // ── Already in tracker? ─────────────────────────────────
-      if (tracker.getByPhone(phone)) {
-        results.skipped.push({ clientName, phone, reason: 'Already contacted' });
-        console.log(`   ↳ Skip: ${clientName} (${phone}) — already in tracker`);
-        continue;
-      }
-
-      // ── Send form + company profile ─────────────────────────
-      try {
-        const whatsappId  = phone.replace('+', '') + '@c.us';
-        const messageText = msg.initialClientMessage(clientName, 'the team', role);
-        const pdfPath     = path.resolve(config.PDF_PATH);
-
-        if (fs.existsSync(pdfPath)) {
-          const media = MessageMedia.fromFilePath(pdfPath);
-          await client.sendMessage(whatsappId, media, { caption: messageText });
-        } else {
-          await client.sendMessage(whatsappId, messageText);
-        }
-
-        tracker.upsertClient({ clientName, phone, role, roleAbbrev, handledBy: 'Backlog Scan' });
-        results.sent.push({ clientName, phone, role: role || 'General' });
-        console.log(`   ✅ Sent to ${clientName} (${phone})`);
-
-        // Small delay between sends to avoid WhatsApp rate-limiting
-        await new Promise(r => setTimeout(r, 1500));
-
-      } catch (err) {
-        results.errors.push({ clientName, phone, error: err.message });
-        console.error(`   ❌ Failed: ${clientName} (${phone}):`, err.message);
-      }
-    }
-
-    const summary = `${results.sent.length} sent, ${results.skipped.length} already contacted, ${results.errors.length} errors`;
-    console.log(`\n📊 Backlog scan complete: ${summary}\n`);
-    res.json({ scanned: inRange.length, summary, ...results });
+    return res.status(400).json({ error: 'Provide single or sendAll in request body.' });
   });
 
   // ── API: Generate invoice manually ──────────────────────────

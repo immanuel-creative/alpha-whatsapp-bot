@@ -690,9 +690,9 @@ function updatePauseBtn(paused) {
   }
 }
 
-async function scanBacklog() {
+async function scanBacklog(forceRefresh) {
   const btn = document.getElementById('scan-btn');
-  btn.textContent = '⏳ Scanning…';
+  btn.textContent = '⏳ Loading…';
   btn.disabled = true;
 
   // Remove existing backlog panel if any
@@ -700,14 +700,15 @@ async function scanBacklog() {
   if (old) old.remove();
 
   try {
+    const url = forceRefresh ? '/api/scan-backlog?refresh=1' : '/api/scan-backlog';
     const controller = new AbortController();
-    const scanTimeout = setTimeout(() => controller.abort(), 40000);
+    const scanTimeout = setTimeout(() => controller.abort(), 45000);
     let r;
     try {
-      r = await fetch('/api/scan-backlog', { signal: controller.signal });
+      r = await fetch(url, { signal: controller.signal });
     } catch (fetchErr) {
       if (fetchErr.name === 'AbortError') {
-        toast('⏱ Scan timed out — try again', 4000);
+        toast('⏱ Timed out — try again', 4000);
         return;
       }
       throw fetchErr;
@@ -719,6 +720,13 @@ async function scanBacklog() {
     if (d.error) { toast('❌ ' + d.error, 4000); return; }
 
     const clients = d.clients || [];
+    const cachedAgo = d.cachedAgo != null ? d.cachedAgo : null;
+    const subtext = clients.length === 0
+      ? 'All caught up! ✅'
+      : clients.length + ' client' + (clients.length !== 1 ? 's' : '') + ' haven\'t received it yet';
+    const cacheNote = cachedAgo != null
+      ? ` · updated ${cachedAgo === 0 ? 'just now' : cachedAgo + 'm ago'}${d.refreshing ? ' (refreshing…)' : ''}`
+      : '';
 
     // Build panel HTML
     const panel = document.createElement('div');
@@ -734,9 +742,12 @@ async function scanBacklog() {
     header.innerHTML = `
       <div>
         <div style="font-weight:700;font-size:16px">📋 Clients Missing Profile & Form</div>
-        <div style="color:#888;font-size:13px;margin-top:2px">${clients.length === 0 ? 'All caught up! ✅' : clients.length + ' client' + (clients.length !== 1 ? 's' : '') + ' haven\'t received it yet'}</div>
+        <div style="color:#888;font-size:13px;margin-top:2px">${subtext}<span style="color:#bbb">${cacheNote}</span></div>
       </div>
-      <button onclick="document.getElementById('backlog-panel').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;padding:4px">×</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="document.getElementById('backlog-panel').remove();scanBacklog(true)" title="Refresh now" style="background:none;border:none;font-size:16px;cursor:pointer;color:#aaa;padding:4px">🔄</button>
+        <button onclick="document.getElementById('backlog-panel').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;padding:4px">×</button>
+      </div>
     `;
 
     // Body
@@ -756,12 +767,16 @@ async function scanBacklog() {
         const card = document.createElement('div');
         card.id = 'backlog-card-' + i;
         card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#fafafa;border-radius:12px;margin-bottom:8px;border:1px solid #f0f0f0';
+        const safeName = c.clientName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const safePhone = c.phone.replace(/'/g,"\\'");
+        const safeRole = (c.role||'').replace(/'/g,"\\'");
+        const safeAbbrev = (c.roleAbbrev||'').replace(/'/g,"\\'");
         card.innerHTML = `
           <div>
             <div style="font-weight:600;font-size:14px">${c.clientName}</div>
             <div style="color:#888;font-size:12px;margin-top:2px">${c.phone}${c.role ? ' · ' + c.role : ''}</div>
           </div>
-          <button onclick="sendBacklogOne(${i}, '${c.phone.replace(/'/g,"\'")}', '${c.clientName.replace(/'/g,"\'")}', '${(c.role||'').replace(/'/g,"\'")}', '${(c.roleAbbrev||'').replace(/'/g,"\'")}', this)"
+          <button onclick="sendBacklogOne(${i}, '${safePhone}', '${safeName}', '${safeRole}', '${safeAbbrev}', this)"
             style="padding:7px 14px;background:#111;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0">
             Send →
           </button>
@@ -783,7 +798,7 @@ async function scanBacklog() {
     document.body.appendChild(panel);
 
   } catch (e) {
-    toast('❌ Scan failed: ' + e.message, 4000);
+    toast('❌ ' + e.message, 4000);
   } finally {
     btn.textContent = '🔍 Scan Backlog';
     btn.disabled = false;
@@ -794,22 +809,34 @@ async function sendBacklogOne(idx, phone, clientName, role, roleAbbrev, btn) {
   btn.textContent = '⏳';
   btn.disabled = true;
   try {
-    const r = await fetch('/api/scan-backlog', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ single: { phone, clientName, role, roleAbbrev } })
-    });
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 35000);
+    let r;
+    try {
+      r = await fetch('/api/scan-backlog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ single: { phone, clientName, role, roleAbbrev } }),
+        signal: ctrl.signal,
+      });
+    } finally { clearTimeout(t); }
     const d = await r.json();
-    if (d.error) { toast('❌ ' + d.error, 4000); btn.textContent = '✗'; return; }
+    if (d.error) {
+      toast('❌ ' + d.error, 4000);
+      btn.textContent = 'Retry';
+      btn.disabled = false;
+      return;
+    }
     const card = document.getElementById('backlog-card-' + idx);
     if (card) {
       card.style.opacity = '0.5';
       card.querySelector('button').textContent = '✅ Sent';
+      card.querySelector('button').disabled = true;
     }
     toast(`✅ Sent to ${clientName}`, 3000);
     load();
   } catch (e) {
-    toast('❌ Failed: ' + e.message, 4000);
+    toast('❌ ' + (e.name === 'AbortError' ? 'Timed out — try again' : e.message), 4000);
     btn.textContent = 'Retry';
     btn.disabled = false;
   }
@@ -829,7 +856,7 @@ async function sendBacklogAll() {
       body: JSON.stringify({ sendAll: clients })
     });
     const d = await r.json();
-    if (d.error) { toast('❌ ' + d.error, 4000); return; }
+    if (d.error) { toast('❌ ' + d.error, 4000); btn.textContent = '📤 Send to All'; btn.disabled = false; return; }
     toast(`✅ ${d.summary}`, 5000);
     panel.remove();
     load();
