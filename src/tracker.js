@@ -15,12 +15,19 @@ function ensureDataFile() {
 }
 
 function load() {
-  ensureDataFile();
-  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+  // IMPORTANT: Don't call ensureDataFile() on read — it will create an empty file if it doesn't exist
+  // Instead, read the file if it exists (git should have provided it), or return [] if missing
+  try { 
+    if (fs.existsSync(DATA_FILE)) {
+      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    }
+    return [];
+  }
   catch { return []; }
 }
 
 function save(clients) {
+  // Ensure directory exists before writing
   ensureDataFile();
   fs.writeFileSync(DATA_FILE, JSON.stringify(clients, null, 2), 'utf8');
 }
