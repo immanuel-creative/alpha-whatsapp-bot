@@ -505,6 +505,11 @@ function startDashboard() {
   app.use(express.json());
   app.use(express.static(path.join(__dirname, 'public')));
 
+  // ── Root route (for Railway health checks) ──
+  app.get('/', (req, res) => {
+    res.json({ status: 'ok', ready: botReady });
+  });
+
   // ── API: Get all clients ──
   app.get('/api/clients', (req, res) => {
     res.json(tracker.getAll());
