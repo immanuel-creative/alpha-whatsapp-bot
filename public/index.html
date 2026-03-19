@@ -531,6 +531,14 @@ function closeDel() {
   pendingDelete = null;
 }
 
+async function fetchWithTimeout(url, opts, ms=35000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  catch(e) { if (e.name==='AbortError') throw new Error('Timed out — WhatsApp may be busy, try again'); throw e; }
+  finally { clearTimeout(t); }
+}
+
 async function addClient() {
   const name  = document.getElementById('f-name').value.trim();
   const phone = document.getElementById('f-phone').value.trim();
@@ -539,13 +547,15 @@ async function addClient() {
   if (!name||!phone) { toast('⚠️ Enter client name and phone'); return; }
   const btn = document.getElementById('send-btn');
   btn.textContent='Sending…'; btn.disabled=true;
-  const r = await fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,phone,role,handledBy:staff})});
-  btn.textContent='Send Message →'; btn.disabled=false;
-  if (r.status===409) { document.getElementById('mbtns-normal').style.display='none'; document.getElementById('mbtns-confirm').style.display='flex'; return; }
-  if (r.status===503) { toast('❌ WhatsApp not connected — scan QR first'); return; }
-  if (!r.ok) { const e=await r.json().catch(()=>({})); toast('❌ '+(e.error||'Send failed')); return; }
-  toast('✅ Message sent to '+esc(name)+'!');
-  closeModal(); resetForm(); load();
+  try {
+    const r = await fetchWithTimeout('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,phone,role,handledBy:staff})});
+    if (r.status===409) { document.getElementById('mbtns-normal').style.display='none'; document.getElementById('mbtns-confirm').style.display='flex'; return; }
+    if (r.status===503) { toast('❌ WhatsApp not connected — scan QR first'); return; }
+    if (!r.ok) { const e=await r.json().catch(()=>({})); toast('❌ '+(e.error||'Send failed')); return; }
+    toast('✅ Message sent to '+esc(name)+'!');
+    closeModal(); resetForm(); load();
+  } catch(e) { toast('❌ '+e.message); }
+  finally { btn.textContent='Send Message →'; btn.disabled=false; }
 }
 
 async function sendAnyway() {
@@ -553,12 +563,14 @@ async function sendAnyway() {
   const role=document.getElementById('f-role').value, staff=document.getElementById('f-staff').value;
   const btn=document.getElementById('send-anyway-btn');
   btn.textContent='Sending…'; btn.disabled=true;
-  const r=await fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,phone,role,handledBy:staff,force:true})});
-  btn.textContent='Send Anyway →'; btn.disabled=false;
-  if (r.status===503){toast('❌ WhatsApp not connected — scan QR first');return;}
-  if (!r.ok){const e=await r.json().catch(()=>({}));toast('❌ '+(e.error||'Send failed'));return;}
-  toast('✅ Message sent to '+esc(name)+'!');
-  closeModal(); resetForm(); load();
+  try {
+    const r=await fetchWithTimeout('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,phone,role,handledBy:staff,force:true})});
+    if (r.status===503){toast('❌ WhatsApp not connected — scan QR first');return;}
+    if (!r.ok){const e=await r.json().catch(()=>({}));toast('❌ '+(e.error||'Send failed'));return;}
+    toast('✅ Message sent to '+esc(name)+'!');
+    closeModal(); resetForm(); load();
+  } catch(e) { toast('❌ '+e.message); }
+  finally { btn.textContent='Send Anyway →'; btn.disabled=false; }
 }
 
 function dismissConfirm() { document.getElementById('mbtns-normal').style.display='flex'; document.getElementById('mbtns-confirm').style.display='none'; closeModal(); }

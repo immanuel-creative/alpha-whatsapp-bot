@@ -688,12 +688,13 @@ function startDashboard() {
       const messageText = msg.initialClientMessage(clientName, handledBy || 'the team', role);
       const pdfPath     = path.resolve(config.PDF_PATH);
 
-      if (fs.existsSync(pdfPath)) {
-        const media = MessageMedia.fromFilePath(pdfPath);
-        await client.sendMessage(whatsappId, media, { caption: messageText });
-      } else {
-        await client.sendMessage(whatsappId, messageText);
-      }
+      const sendPromise = fs.existsSync(pdfPath)
+        ? client.sendMessage(whatsappId, MessageMedia.fromFilePath(pdfPath), { caption: messageText })
+        : client.sendMessage(whatsappId, messageText);
+      await Promise.race([
+        sendPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('WhatsApp send timed out — check the number and try again')), 30000)),
+      ]);
 
       // Only save to DB after message sent successfully
       const record = tracker.upsertClient({ clientName, phone, role, roleAbbrev: roleAbbrev || '', handledBy: handledBy || 'Dashboard' });
@@ -721,7 +722,10 @@ function startDashboard() {
     if (!c) return res.status(404).json({ error: 'Not found' });
 
     const followUpText = msg.followUpMessage(c.clientName, c.followUpCount);
-    await client.sendMessage(c.phone.replace('+', '') + '@c.us', followUpText);
+    await Promise.race([
+      client.sendMessage(c.phone.replace('+', '') + '@c.us', followUpText),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('WhatsApp send timed out')), 30000)),
+    ]);
     tracker.updateStatus(c.phone, 'message_sent', { followUpCount: c.followUpCount + 1, lastFollowUpAt: new Date().toISOString() });
     res.json({ success: true });
   });
