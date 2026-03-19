@@ -794,6 +794,8 @@ function startDashboard() {
     tracker.upsertClient({ clientName, phone, role: role || '', roleAbbrev: roleAbbrev || '', handledBy: 'Backlog Scan' });
     // After sending, invalidate cache so next GET reflects the change
     if (backlogCache) backlogCache.clients = backlogCache.clients.filter(c => c.phone.replace(/\D/g,'') !== phone.replace(/\D/g,''));
+    // Notify group
+    await safeGroupSend(`Message sent to ${clientName}`);
   }
 
   app.post('/api/scan-backlog', async (req, res) => {

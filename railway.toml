@@ -2,7 +2,7 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "node index.js"
+startCommand = "bash /app/start.sh"
 restartPolicyType = "always"
 healthcheckPath = "/api/status"
 healthcheckTimeout = 300
