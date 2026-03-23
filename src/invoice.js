@@ -166,12 +166,13 @@ function buildInvoiceHTML(data) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   width: 794px;
   background: #fff;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Noto Sans', Arial, Helvetica, sans-serif;
   color: #111;
   font-size: 13px;
 }
@@ -431,7 +432,7 @@ async function generateInvoicePDF(invoiceData) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     // Wait a tick for layout to settle
     await new Promise(r => setTimeout(r, 300));
