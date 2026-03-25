@@ -166,7 +166,13 @@ function buildInvoiceHTML(data) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family: 'Noto Sans'; font-weight: 300; src: local('Noto Sans Light'), local('NotoSans-Light'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 400; src: local('Noto Sans'), local('NotoSans-Regular'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 600; src: local('Noto Sans SemiBold'), local('NotoSans-SemiBold'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 700; src: local('Noto Sans Bold'), local('NotoSans-Bold'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 900; src: local('Noto Sans Black'), local('NotoSans-Black'); }
+</style>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body {

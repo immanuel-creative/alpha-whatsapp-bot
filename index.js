@@ -291,8 +291,8 @@ async function runHealthCheck() {
     const isTimeout  = /timeout|timed out/i.test(err.message);
     if (isDetached || isTimeout) {
       healthCheckFailures++;
-      console.warn(`\n⚠️  Health check failed (${healthCheckFailures}/3): ${err.message}`);
-      if (healthCheckFailures >= 3) {
+      console.warn(`\n⚠️  Health check failed (${healthCheckFailures}/5): ${err.message}`);
+      if (healthCheckFailures >= 5) {
         console.warn('🔄 Bot appears frozen — forcing restart...');
         botReady = false;
         groupChat = null;
@@ -305,10 +305,10 @@ async function runHealthCheck() {
   }
 }
 
-// Start health check after 3 minutes (give bot time to connect first)
+// Start health check after 5 minutes (give bot time to connect first)
 setTimeout(() => {
-  setInterval(runHealthCheck, 2 * 60 * 1000); // every 2 minutes
-}, 3 * 60 * 1000);
+  setInterval(runHealthCheck, 5 * 60 * 1000); // every 5 minutes
+}, 5 * 60 * 1000);
 
 // ─── Messages ──────────────────────────────────────────────────
 
@@ -950,12 +950,12 @@ function startDashboard() {
       }
     }
 
-    const sinceDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); // last 10 days
+    const sinceDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // last 30 days
     const sinceTs   = Math.floor(sinceDate.getTime() / 1000);
 
     let messages;
     try {
-      messages = await groupChat.fetchMessages({ limit: 500 });
+      messages = await groupChat.fetchMessages({ limit: 1000 });
     } catch (err) {
       return res.status(500).json({ error: 'Failed to fetch messages: ' + err.message });
     }
