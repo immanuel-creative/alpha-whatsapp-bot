@@ -148,12 +148,12 @@ function buildInvoiceHTML(data) {
     clientName, clientAddress, clientPhone,
     staffName, roleAbbrev, joiningDate,
     salary, regFeePaid,
-    extraItems,
+    extraItems, skipClientPrefix,
   } = data;
 
   const roleLabel      = getRoleLabel(roleAbbrev);
   const prefix         = getStaffPrefix(roleAbbrev);
-  const clientNameFull = ensureClientPrefix(clientName);
+  const clientNameFull = skipClientPrefix ? (clientName || '').trim() : ensureClientPrefix(clientName);
   const clientPhoneFmt = formatIndianPhone(clientPhone);
   const serviceFee     = salary;
   const regFeeAmt      = regFeePaid ? 1000 : 0;
