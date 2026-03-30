@@ -851,7 +851,7 @@ function startDashboard() {
   app.post('/api/generate-invoice', async (req, res) => {
     const { clientName, clientAddress, clientPhone, staffName,
             roleAbbrev, joiningDate, salary, regFeePaid, sendToGroup,
-            markMsgId } = req.body || {};
+            markMsgId, extraItems } = req.body || {};
 
     if (!clientName || !staffName || !salary) {
       return res.status(400).json({ error: 'clientName, staffName and salary are required.' });
@@ -862,6 +862,7 @@ function startDashboard() {
         clientName, clientAddress, clientPhone,
         staffName, roleAbbrev: (roleAbbrev || '').toUpperCase(),
         joiningDate, salary: Number(salary), regFeePaid: !!regFeePaid,
+        extraItems: Array.isArray(extraItems) ? extraItems : [],
       });
 
       console.log(`🧾 Manual invoice #${result.invoiceNo} generated for ${clientName}`);

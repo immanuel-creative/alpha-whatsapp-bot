@@ -148,6 +148,7 @@ function buildInvoiceHTML(data) {
     clientName, clientAddress, clientPhone,
     staffName, roleAbbrev, joiningDate,
     salary, regFeePaid,
+    extraItems,
   } = data;
 
   const roleLabel      = getRoleLabel(roleAbbrev);
@@ -156,7 +157,8 @@ function buildInvoiceHTML(data) {
   const clientPhoneFmt = formatIndianPhone(clientPhone);
   const serviceFee     = salary;
   const regFeeAmt      = regFeePaid ? 1000 : 0;
-  const total          = serviceFee - regFeeAmt;
+  const extraTotal     = Array.isArray(extraItems) ? extraItems.reduce((s, i) => s + Number(i.amount), 0) : 0;
+  const total          = serviceFee - regFeeAmt + extraTotal;
 
   const addressHTML = clientAddress
     ? esc(clientAddress).replace(/,\s*/g, ',<br>')
@@ -382,6 +384,13 @@ body {
         </td>
       </tr>
       <tr class="spacer"><td></td><td></td></tr>
+      ${Array.isArray(extraItems) ? extraItems.map(item => `
+      <tr>
+        <td class="c1">${esc(item.label)}</td>
+        <td>${formatCurrency(item.amount)}</td>
+      </tr>
+      <tr class="spacer"><td></td><td></td></tr>
+      `).join('') : ''}
     </tbody>
   </table>
   <div class="total-wrap">
