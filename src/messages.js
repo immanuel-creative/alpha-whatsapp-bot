@@ -193,32 +193,33 @@ function duplicateWarning(client) {
 
 // Returns null if this reply is NOT worth notifying the group about.
 // Caller should check: if (msg) safeGroupSend(msg)
-function clientRepliedAlert(client, intent) {
+function clientRepliedAlert(client, intent, replyText) {
   const name = client.clientName;
   const role = client.role ? ` (${client.role})` : '';
   const handler = client.handledBy ? ` — handled by ${client.handledBy}` : '';
+  const quote = replyText ? `\n💬 _"${replyText.trim()}"_` : '';
 
   switch (intent) {
     case 'form_filled':
-      return `${name}${role} has filled the form. Good to proceed${handler}.`;
+      return `${name}${role} has filled the form. Good to proceed${handler}.${quote}`;
 
     case 'link_request':
-      return `${name}${role} asked for the form link again. Link has been resent${handler}.`;
+      return `${name}${role} asked for the form link again. Link has been resent${handler}.${quote}`;
 
     case 'price_inquiry':
-      return `${name}${role} is asking about the salary or details. Please follow up${handler}.`;
+      return `${name}${role} is asking about the salary or details. Please follow up${handler}.${quote}`;
 
     case 'availability_query':
-      return `${name}${role} has a question about timing. Please follow up${handler}.`;
+      return `${name}${role} has a question about timing. Please follow up${handler}.${quote}`;
 
     case 'not_interested':
-      return `${name}${role} has declined our service. Consider closing this lead${handler}.`;
+      return `${name}${role} has declined our service. Consider closing this lead${handler}.${quote}`;
 
     case 'asking_update':
-      return `${name}${role} is asking for an update. Please follow up${handler}.`;
+      return `${name}${role} is asking for an update. Please follow up${handler}.${quote}`;
 
     case 'general_question':
-      return `${name}${role} has a question. Please check and reply${handler}.`;
+      return `${name}${role} has a question. Please check and reply${handler}.${quote}`;
 
     // 'confirmed' and 'neutral' are NOT worth pinging the group about
     default:

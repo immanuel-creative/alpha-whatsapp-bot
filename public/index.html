@@ -56,9 +56,11 @@
     .filter-wrap::-webkit-scrollbar{display:none}
     .chip{flex-shrink:0;padding:7px 14px;border-radius:99px;border:1.5px solid var(--line);background:var(--white);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:all .12s}
     .chip.on{background:var(--black);color:#fff;border-color:var(--black)}
-    /* MONTH HEADER */
-    .month-hd{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px}
-    .month-hd::after{content:'';flex:1;height:1px;background:var(--line)}
+    /* MONTH TABS */
+    .month-tabs{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1.5px solid var(--line);margin:0 16px 12px;-webkit-overflow-scrolling:touch}
+    .month-tabs::-webkit-scrollbar{display:none}
+    .month-tab{flex-shrink:0;padding:8px 16px;font-size:12px;font-weight:600;color:var(--ink3);cursor:pointer;border:none;background:none;font-family:'Inter',sans-serif;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:.5px}
+    .month-tab.on{color:var(--ink);border-bottom-color:var(--black)}
     /* CARD */
     .ccard{background:var(--white);border-radius:var(--r);margin:0 16px 8px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)}
     .ccard-head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none}
@@ -192,6 +194,8 @@
     </div>
     <div id="pending-invoice-list" style="padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;"></div>
   </div>
+
+  <div class="month-tabs" id="month-tabs"></div>
 
   <div id="client-list">
     <div style="padding:32px 16px;text-align:center;color:#a1a1aa;font-size:14px">Loading…</div>
@@ -338,7 +342,7 @@
 <script>
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-let allClients = [], curFilter = 'all', pendingDelete = null;
+let allClients = [], curFilter = 'all', curMonth = null, pendingDelete = null;
 
 const STATUS = {
   new:          {label:'New',         badge:'ba'},
@@ -416,26 +420,38 @@ function renderClients() {
   }).sort((a,b) => new Date(b.messageSentAt)-new Date(a.messageSentAt));
 
   const wrap = document.getElementById('client-list');
-  if (!list.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">${q?'No results for "'+esc(q)+'"':'Nothing here yet'}</div></div>`;
-    return;
-  }
 
-  // Group by month
-  const groups = {};
-  list.forEach(c => {
+  // Build month groups from ALL clients (not just filtered), so tabs are always consistent
+  const allGroups = {};
+  allClients.forEach(c => {
     const d   = new Date(c.messageSentAt);
     const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     const lbl = d.toLocaleDateString('en-MY',{month:'long'}) + " '" + String(d.getFullYear()).slice(2);
-    if (!groups[key]) groups[key] = {lbl, items:[]};
-    groups[key].items.push(c);
+    if (!allGroups[key]) allGroups[key] = {lbl};
+  });
+  const allKeys = Object.keys(allGroups).sort().reverse(); // newest first = leftmost
+
+  // Default to the newest (current) month
+  if (!curMonth || !allGroups[curMonth]) curMonth = allKeys[0];
+
+  // Render tabs
+  const tabsEl = document.getElementById('month-tabs');
+  tabsEl.innerHTML = allKeys.map(k =>
+    `<button class="month-tab${k===curMonth?' on':''}" onclick="setMonth('${k}')">${allGroups[k].lbl}</button>`
+  ).join('');
+
+  // Filter list to active month only
+  const monthList = list.filter(c => {
+    const d   = new Date(c.messageSentAt);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    return key === curMonth;
   });
 
-  const keys = Object.keys(groups).sort().reverse();
-  wrap.innerHTML = keys.map(k => {
-    const {lbl, items} = groups[k];
-    return `<div class="month-hd">${lbl}</div>` + items.map(c => renderCard(c)).join('');
-  }).join('');
+  if (!monthList.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">${q?'No results for "'+esc(q)+'"':'Nothing here yet'}</div></div>`;
+    return;
+  }
+  wrap.innerHTML = monthList.map(c => renderCard(c)).join('');
 }
 
 function renderCard(c) {
@@ -578,6 +594,7 @@ function resetForm() { document.getElementById('f-name').value=''; document.getE
 
 /* UI helpers */
 function setFilter(f,el) { curFilter=f; document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on')); el.classList.add('on'); renderClients(); }
+function setMonth(k) { curMonth=k; renderClients(); }
 function openModal()  { document.getElementById('overlay').classList.add('open'); }
 function closeModal() { document.getElementById('overlay').classList.remove('open'); document.getElementById('mbtns-normal').style.display='flex'; document.getElementById('mbtns-confirm').style.display='none'; }
 function bgClose(e)   { if(e.target===e.currentTarget) closeModal(); }

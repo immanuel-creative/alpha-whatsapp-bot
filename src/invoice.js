@@ -110,6 +110,13 @@ function getStaffPrefix(roleAbbrev) {
   return roleAbbrev?.toUpperCase() === 'D' ? 'Mr.' : 'Ms.';
 }
 
+// Ensure staff name has a prefix, but don't double-up if it already has one
+function ensureStaffPrefix(name, prefix) {
+  if (!name) return name;
+  if (/^(Mr\.|Ms\.|Mrs\.|Dr\.|Prof\.)/i.test(name.trim())) return name.trim();
+  return prefix + ' ' + name.trim();
+}
+
 // Ensure client name always has Mr./Ms. prefix
 // If the name already starts with a title, keep it. Otherwise default to Ms.
 function ensureClientPrefix(name) {
@@ -153,6 +160,7 @@ function buildInvoiceHTML(data) {
 
   const roleLabel      = getRoleLabel(roleAbbrev);
   const prefix         = getStaffPrefix(roleAbbrev);
+  const staffNameFull  = ensureStaffPrefix(staffName, prefix);
   const clientNameFull = skipClientPrefix ? (clientName || '').trim() : ensureClientPrefix(clientName);
   const clientPhoneFmt = formatIndianPhone(clientPhone);
   const serviceFee     = salary;
@@ -354,7 +362,7 @@ body {
     <tbody>
       <tr>
         <td>
-          ${esc(prefix)} ${esc(staffName)}
+          ${esc(staffNameFull)}
           <div class="role-tag">${esc(roleLabel)}</div>
         </td>
         <td class="col-date">${esc(joiningDate || '—')}</td>
@@ -474,6 +482,7 @@ module.exports = {
   generateInvoicePDF,
   getRoleLabel,
   getStaffPrefix,
+  ensureStaffPrefix,
   ensureClientPrefix,
   formatIndianPhone,
   getNextInvoiceNumber,

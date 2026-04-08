@@ -498,8 +498,8 @@ async function handlePrivateReply(message) {
   tracker.updateStatus(record.phone, newStatus, { clientReplyIntent: intent });
   console.log(`🔔 ${record.clientName} replied — intent: ${intent}`);
 
-  // 1. Notify the group ONLY if the reply is actionable
-  const groupAlert = msg.clientRepliedAlert(record, intent);
+  // 1. Notify the group ONLY if the reply is actionable — include the client's actual message
+  const groupAlert = msg.clientRepliedAlert(record, intent, message.body);
   if (groupAlert) {
     await safeGroupSend(groupAlert);
   }
@@ -531,18 +531,21 @@ async function processClientEntry(message, entry, senderName) {
   }
 
   try {
-    const whatsappId  = phone.replace('+', '') + '@c.us';
+    const whatsappId  = phone.replace(/[\s\-().+]/g, '') + '@c.us';
     const messageText = msg.initialClientMessage(clientName, staff, role);
     const pdfPath     = path.resolve(config.PDF_PATH);
+    const hasPdf      = fs.existsSync(pdfPath);
 
-    if (fs.existsSync(pdfPath)) {
+    if (hasPdf) {
       const media = MessageMedia.fromFilePath(pdfPath);
       await client.sendMessage(whatsappId, media, { caption: messageText });
     } else {
       await client.sendMessage(whatsappId, messageText);
+      console.warn(`⚠️  PDF not found at ${pdfPath} — sent text only`);
     }
 
     console.log(`✅ Sent to ${clientName} (${phone})`);
+    await safeGroupSend(msg.messageSentConfirmation(record, staff) + (hasPdf ? '' : ' _(profile PDF missing — form link sent only)_'));
 
   } catch (err) {
     await safeGroupSend(`❌ Failed to reach *${clientName}* (${phone}) — check the number.`);
@@ -687,8 +690,9 @@ function startDashboard() {
       const whatsappId  = phone.replace(/[\s\-().+]/g, '') + '@c.us';
       const messageText = msg.initialClientMessage(clientName, handledBy || 'the team', role);
       const pdfPath     = path.resolve(config.PDF_PATH);
+      const hasPdf      = fs.existsSync(pdfPath);
 
-      const sendPromise = fs.existsSync(pdfPath)
+      const sendPromise = hasPdf
         ? client.sendMessage(whatsappId, MessageMedia.fromFilePath(pdfPath), { caption: messageText })
         : client.sendMessage(whatsappId, messageText);
       await Promise.race([
@@ -699,6 +703,11 @@ function startDashboard() {
       // Only save to DB after message sent successfully
       const record = tracker.upsertClient({ clientName, phone, role, roleAbbrev: roleAbbrev || '', handledBy: handledBy || 'Dashboard' });
       console.log(`✅ Dashboard sent to ${clientName}`);
+
+      // Notify group so staff know the send happened
+      const staffLabel = handledBy || 'Dashboard';
+      await safeGroupSend(msg.messageSentConfirmation(record, staffLabel) + (hasPdf ? '' : ' _(profile PDF missing — form link sent only)_'));
+
       res.json({ success: true, client: record });
     } catch (err) {
       res.status(500).json({ error: err.message });
