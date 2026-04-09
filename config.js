@@ -30,6 +30,7 @@ module.exports = {
   ROLES: {
     'BS':       'Babysitter / Nanny',
     'Bs':       'Babysitter / Nanny',
+    'B/S':      'Babysitter / Nanny',
     'CK':       'Cook',
     'Ck':       'Cook',
     'HK':       'Housekeeper',

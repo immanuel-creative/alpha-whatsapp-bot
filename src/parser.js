@@ -60,22 +60,24 @@ function parseClientEntry(text) {
     const clientMatch = line.match(/^(?:client|name|naam|customer)\s*:?\s*(.+)$/i);
     if (clientMatch) { clientName = clientMatch[1].trim(); continue; }
 
-    // Labeled phone: "Ph: +60..." / "Phone:" / "No:" / "Mob:" / "HP:"
-    const phoneMatch = line.match(/^(?:ph|phone|no|number|mob|mobile|num|contact|hp|tel)\s*:\s*(\+?[\d\s\-().]{7,20})$/i);
+    // Labeled phone: "Ph:", "PH.no:", "Phone.", "Mob:" etc.
+    // Flexible separator handles "PH.no:", "Ph.no:", "Phone.", "Ph - " etc.
+    const phoneMatch = line.match(/^(?:ph(?:one)?|mob(?:ile)?|no|number|num|contact|hp|tel)[^+\d]*(\+?[\d\s\-().]{7,20})$/i);
     if (phoneMatch) { phone = normalisePhone(phoneMatch[1]); continue; }
 
     // Bare phone number — 10+ digits, may start with + or country code
     const barePhone = line.match(/^(\+?[\d\s\-().]{10,20})$/);
     if (barePhone && !phone) { phone = normalisePhone(barePhone[1]); continue; }
 
-    // Role abbreviation — must match config exactly (case-insensitive)
+    // Role abbreviation — strip trailing (L) / (Live-in) / (live in) qualifier first
     const roleKeys = Object.keys(config.ROLES);
-    const matchedRole = roleKeys.find(k => line.toLowerCase() === k.toLowerCase());
+    const cleanedForRole = line.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    const matchedRole = roleKeys.find(k => cleanedForRole.toLowerCase() === k.toLowerCase());
     if (matchedRole) { roleAbbrev = matchedRole; continue; }
 
     // Role as full word (e.g. "Cook", "Driver")
     const fullRoles = Object.values(config.ROLES);
-    const matchedFull = fullRoles.find(r => line.toLowerCase() === r.toLowerCase());
+    const matchedFull = fullRoles.find(r => cleanedForRole.toLowerCase() === r.toLowerCase());
     if (matchedFull) {
       // find the key for this value
       roleAbbrev = Object.keys(config.ROLES).find(k => config.ROLES[k].toLowerCase() === matchedFull.toLowerCase());
