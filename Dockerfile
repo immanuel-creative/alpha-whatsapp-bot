@@ -68,7 +68,8 @@ COPY . .
 RUN mkdir -p /app/data_seed && \
     (cp data/clients.json /app/data_seed/ 2>/dev/null || echo "No clients.json found") && \
     (cp data/invoice-counter.json /app/data_seed/ 2>/dev/null || echo "No invoice-counter.json found") && \
-    (cp data/invoiced-messages.json /app/data_seed/ 2>/dev/null || echo "No invoiced-messages.json found")
+    (cp data/invoiced-messages.json /app/data_seed/ 2>/dev/null || echo "No invoiced-messages.json found") && \
+    (cp data/salary-clients.json /app/data_seed/ 2>/dev/null || echo "No salary-clients.json found")
 
 EXPOSE 3000
 

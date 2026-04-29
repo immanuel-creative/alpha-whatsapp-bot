@@ -15,7 +15,7 @@ try {
   }
 
   // Files to seed from data_seed to data
-  const seedFiles = ['clients.json', 'invoice-counter.json', 'invoiced-messages.json'];
+  const seedFiles = ['clients.json', 'invoice-counter.json', 'invoiced-messages.json', 'salary-clients.json'];
 
   for (const file of seedFiles) {
     const dest = path.join(DATA_DIR, file);

@@ -477,9 +477,341 @@ async function generateInvoicePDF(invoiceData) {
   return { invoiceNo, filename, path: outPath };
 }
 
+// ─── Salary Invoice: Client Lookup ────────────────────────────
+
+const SALARY_CLIENTS_PATH = path.resolve(__dirname, '../data/salary-clients.json');
+
+function getSalaryClient(rawName) {
+  if (!fs.existsSync(SALARY_CLIENTS_PATH)) return null;
+  const list = JSON.parse(fs.readFileSync(SALARY_CLIENTS_PATH, 'utf8'));
+  const key  = rawName.trim().toLowerCase().replace(/^(mr|ms|mrs|dr)\.?\s*/i, '');
+  return list.find(c =>
+    c.aliases.some(a => a.toLowerCase() === key || key.includes(a.toLowerCase()) || a.toLowerCase().includes(key))
+  ) || null;
+}
+
+function saveSalaryClient(entry) {
+  const list = fs.existsSync(SALARY_CLIENTS_PATH)
+    ? JSON.parse(fs.readFileSync(SALARY_CLIENTS_PATH, 'utf8'))
+    : [];
+  const idx = list.findIndex(c => c.name.toLowerCase() === entry.name.toLowerCase());
+  if (idx >= 0) list[idx] = { ...list[idx], ...entry };
+  else list.push(entry);
+  fs.writeFileSync(SALARY_CLIENTS_PATH, JSON.stringify(list, null, 2));
+}
+
+// ─── Salary Invoice: Message Parser ───────────────────────────
+//
+// Handles this group message format:
+//   March month Salary details:
+//   1.)Gayathri:
+//   *Jesintha (5 days extra) =20,000/-
+//   *S.charge =2,000/-
+//   *Total =22,000/-
+//   2)Asma :
+//   *Theerthamoorthi =42,000/-
+
+function parseSalaryMessage(text) {
+  if (!/salary\s+details/i.test(text)) return null;
+
+  // Extract month name
+  const monthMatch = text.match(/^([A-Za-z]+)\s+month\s+salary/im) ||
+                     text.match(/salary\s+details\s+for\s+([A-Za-z]+)/i);
+  const month = monthMatch ? monthMatch[1] : '';
+
+  // Split into numbered client blocks
+  const blocks = text.split(/\n(?=\d+[.)]+\s*)/);
+  const clients = [];
+
+  for (const block of blocks) {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+
+    // First line must be a numbered entry: "1.)Gayathri:" or "2)Asma :"
+    const clientLineMatch = lines[0].match(/^\d+[.)]+\s*(.+?)(?:\s*\(.*?\))?\s*:?\s*$/);
+    if (!clientLineMatch) continue;
+
+    const rawClientName = clientLineMatch[1].trim();
+
+    // Parse star line items
+    const items = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.startsWith('*')) continue;
+
+      // Skip pure total lines
+      if (/^\*\s*total\b/i.test(line)) continue;
+
+      // Parse: *LabelName (optional note) =amount/- or =amount
+      // Also handles: *Dhanalakshi  S.charge =1,298/-
+      const amtMatch = line.match(/^[*]\s*(.+?)\s*[=]\s*([\d,]+)/);
+      if (!amtMatch) continue;
+
+      let label  = amtMatch[1].replace(/\.\s*$/, '').trim();
+      const amount = parseInt(amtMatch[2].replace(/,/g, ''), 10);
+      if (!amount) continue;
+
+      // Normalise "S.charge" / "s.charge" variants within label
+      const isSvc = /s\.?\s*charge|service\s*charge/i.test(label);
+      if (isSvc) label = 'Service Charge';
+
+      items.push({ label, amount, isSvc });
+    }
+
+    if (items.length > 0) {
+      clients.push({ rawClientName, items });
+    }
+  }
+
+  return clients.length ? { month, clients } : null;
+}
+
+// ─── Salary Invoice: HTML Template ────────────────────────────
+
+function buildSalaryInvoiceHTML(data) {
+  const {
+    invoiceNo, invoiceDate,
+    clientBilled, clientAddress, clientPhone,
+    month, items,
+  } = data;
+
+  const total       = items.reduce((s, i) => s + i.amount, 0);
+  const addressHTML = clientAddress
+    ? esc(clientAddress).replace(/,\s*/g, ',<br>')
+    : '';
+
+  const rowsHTML = items.map(item => `
+      <tr>
+        <td class="c1">${esc(item.label)}</td>
+        <td>${formatCurrency(item.amount)}</td>
+      </tr>
+      <tr class="spacer"><td></td><td></td></tr>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Noto Sans'; font-weight: 300; src: local('Noto Sans Light'), local('NotoSans-Light'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 400; src: local('Noto Sans'), local('NotoSans-Regular'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 600; src: local('Noto Sans SemiBold'), local('NotoSans-SemiBold'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 700; src: local('Noto Sans Bold'), local('NotoSans-Bold'); }
+  @font-face { font-family: 'Noto Sans'; font-weight: 900; src: local('Noto Sans Black'), local('NotoSans-Black'); }
+</style>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width: 794px;
+  background: #fff;
+  font-family: 'Noto Sans', Arial, Helvetica, sans-serif;
+  color: #111;
+  font-size: 13px;
+}
+.header {
+  background: #111; color: #fff;
+  display: table; width: 100%; table-layout: fixed;
+}
+.header-left, .header-right {
+  display: table-cell; vertical-align: middle; padding: 28px 36px;
+}
+.header-left { width: 55%; }
+.header-right { width: 45%; text-align: right; }
+.praise {
+  font-size: 8.5px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(255,255,255,0.35); margin-bottom: 14px;
+}
+.invoice-box {
+  display: inline-block;
+  border: 1px solid rgba(255,255,255,0.55);
+  padding: 7px 22px 6px 22px;
+  font-size: 15px; letter-spacing: 8px; font-weight: 300; color: #fff;
+}
+.salary-label {
+  font-size: 26px; font-weight: 300; letter-spacing: 10px;
+  color: #fff; margin-top: 8px; line-height: 1.2;
+}
+.alpha-logo {
+  font-size: 54px; font-weight: 900; letter-spacing: -3px;
+  line-height: 1; color: #fff; margin-bottom: 10px;
+}
+.company-address {
+  font-size: 9px; line-height: 2; color: rgba(255,255,255,0.5); letter-spacing: 0.2px;
+}
+.accent-bar { height: 3px; background: #c9a84c; width: 100%; }
+.meta {
+  display: table; width: 100%; table-layout: fixed;
+  padding: 26px 36px 22px; border-bottom: 1px solid #ebebeb;
+}
+.meta-left, .meta-right { display: table-cell; vertical-align: top; width: 50%; }
+.meta-right { text-align: right; }
+.invoice-date { font-size: 13px; color: #555; letter-spacing: 0.2px; }
+.billed-label {
+  font-size: 8.5px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: #bbb; margin-bottom: 7px; font-weight: 600;
+}
+.billed-name  { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: #111; }
+.billed-address { font-size: 11px; line-height: 1.75; color: #777; }
+.billed-phone { font-size: 12px; color: #444; margin-top: 4px; font-weight: 600; }
+.amount-wrap { padding: 36px 36px 0; }
+.amount-table {
+  width: 440px; margin: 0 auto;
+  border-collapse: collapse; border: 1px solid #e0e0e0;
+}
+.amount-table th {
+  background: #f9f9f9; font-size: 8.5px; letter-spacing: 2px;
+  text-transform: uppercase; color: #bbb; font-weight: 600;
+  padding: 11px 20px; border-bottom: 1px solid #e0e0e0; text-align: center;
+}
+.amount-table th.c1 { border-right: 1px solid #e0e0e0; width: 60%; }
+.amount-table td { padding: 14px 20px; font-size: 13px; text-align: center; color: #333; }
+.amount-table td.c1 { border-right: 1px solid #e0e0e0; font-weight: 600; color: #222; text-align: center; }
+.spacer td { padding: 3px; }
+.total-wrap { width: 440px; margin: 0 auto; }
+.total-inner {
+  display: table; width: 100%;
+  border-top: 2px solid #111; margin-top: 10px; padding-top: 11px;
+}
+.total-inner .tl, .total-inner .tr { display: table-cell; font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+.total-inner .tr { text-align: right; }
+.divider { margin: 26px 36px; border: none; border-top: 1px solid #ebebeb; }
+.payment-wrap { text-align: center; padding: 0 36px; }
+.pay-title {
+  font-size: 8.5px; letter-spacing: 3px; text-transform: uppercase;
+  color: #ccc; margin-bottom: 16px; font-weight: 600;
+}
+.pay-grid { display: inline-block; text-align: left; }
+.pay-row { font-size: 12px; margin-bottom: 9px; color: #666; line-height: 1; }
+.pay-row b { color: #111; margin-right: 6px; font-weight: 700; }
+.note {
+  text-align: center; padding: 20px 60px 26px;
+  font-size: 11px; color: #aaa; line-height: 1.9;
+}
+.note strong { color: #555; font-weight: 600; }
+.footer {
+  background: #111; color: rgba(255,255,255,0.4);
+  text-align: center; font-size: 9.5px; letter-spacing: 2.5px; padding: 14px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="praise">Praise the Lord</div>
+    <div class="invoice-box">Salary</div>
+    <div class="salary-label">Invoice</div>
+  </div>
+  <div class="header-right">
+    <div class="alpha-logo">alpha</div>
+    <div class="company-address">
+      7/4, Venkataswamy Street, Santhome<br>
+      Chennai 600 004<br>
+      reachus@alphathehub.com<br>
+      8072585058 &nbsp;/&nbsp; 8056445058 &nbsp;/&nbsp; 8056635058
+    </div>
+  </div>
+</div>
+
+<div class="accent-bar"></div>
+
+<div class="meta">
+  <div class="meta-left">
+    <div class="invoice-date">Date: ${esc(invoiceDate)}</div>
+  </div>
+  <div class="meta-right">
+    <div class="billed-label">Billed to</div>
+    <div class="billed-name">${esc(clientBilled)}</div>
+    ${addressHTML    ? `<div class="billed-address">${addressHTML}</div>` : ''}
+    ${clientPhone    ? `<div class="billed-phone">${esc(clientPhone)}</div>` : ''}
+  </div>
+</div>
+
+<div class="amount-wrap">
+  <table class="amount-table">
+    <thead>
+      <tr>
+        <th class="c1">Salary</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+    </tbody>
+  </table>
+  <div class="total-wrap">
+    <div class="total-inner">
+      <div class="tl">Total</div>
+      <div class="tr">${formatCurrency(total)}</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="payment-wrap">
+  <div class="pay-title">Payment Details</div>
+  <div class="pay-grid">
+    <div class="pay-row"><b>Account Name:</b> Alpha the Hub</div>
+    <div class="pay-row"><b>Account Number:</b> 44190854401</div>
+    <div class="pay-row"><b>IFSC Code:</b> SBIN0005797</div>
+    <div class="pay-row"><b>UPI ID:</b> alphathehub@sbi</div>
+  </div>
+</div>
+
+<div class="note">
+  Thank you for choosing <strong>Alpha!</strong>
+</div>
+
+<div class="footer">www.alphathehub.com</div>
+
+</body>
+</html>`;
+}
+
+// ─── Salary Invoice: PDF Generator ────────────────────────────
+
+async function generateSalaryInvoicePDF(invoiceData) {
+  if (!fs.existsSync(INVOICES_DIR)) fs.mkdirSync(INVOICES_DIR, { recursive: true });
+
+  const invoiceNo   = getNextInvoiceNumber();
+  const invoiceDate = invoiceData.invoiceDate || todayInvoiceDate();
+  const data        = { ...invoiceData, invoiceNo, invoiceDate };
+
+  const html     = buildSalaryInvoiceHTML(data);
+  const safeName = (data.clientBilled || 'Client').replace(/[^\w .\-]/g, '').trim();
+  const filename = `${invoiceNo}-salary-${safeName}.png`;
+  const outPath  = path.join(INVOICES_DIR, filename);
+
+  const puppeteer = require('puppeteer');
+  const browser   = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-web-security'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
+    await new Promise(r => setTimeout(r, 300));
+    const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
+    await page.setViewport({ width: 794, height: bodyHeight, deviceScaleFactor: 2 });
+    const pngBuffer = await page.screenshot({ type: 'png', fullPage: true });
+    fs.writeFileSync(outPath, pngBuffer);
+  } finally {
+    await browser.close();
+  }
+
+  saveInvoiceNumber(invoiceNo + 1);
+  return { invoiceNo, filename, path: outPath };
+}
+
 module.exports = {
   parseInvoiceMessage,
   generateInvoicePDF,
+  parseSalaryMessage,
+  generateSalaryInvoicePDF,
+  getSalaryClient,
+  saveSalaryClient,
   getRoleLabel,
   getStaffPrefix,
   ensureStaffPrefix,

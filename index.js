@@ -335,14 +335,21 @@ async function handleGroupMessage(message, senderName) {
   const text = message.body.trim();
   if (!text) return;
 
-  // 1. Invoice entry? (numbered format 1.Name 2.Address … 7.Date)
+  // 1. Salary batch? (e.g. "March month Salary details:\n1.)Gayathri:\n*Jesintha=20000")
+  const salaryBatch = invoice.parseSalaryMessage(text);
+  if (salaryBatch) {
+    await processSalaryBatch(message, salaryBatch, senderName);
+    return;
+  }
+
+  // 2. Invoice entry? (numbered format 1.Name 2.Address … 7.Date)
   const invoiceEntry = invoice.parseInvoiceMessage(text);
   if (invoiceEntry) {
     await processInvoiceEntry(message, invoiceEntry, senderName);
     return;
   }
 
-  // 2. Client entry?
+  // 3. Client entry?
   const entry = parser.parseClientEntry(text);
   if (entry) { await processClientEntry(message, entry, senderName); return; }
 
@@ -505,6 +512,54 @@ async function handlePrivateReply(message) {
   }
 
   // No private reply to client — all communications go through group only
+}
+
+// ─── Process Salary Batch ─────────────────────────────────────
+// Triggered when staff posts "March month Salary details:" format.
+// Generates one salary invoice per client and sends each to group.
+
+async function processSalaryBatch(message, batch, senderName) {
+  const { month, clients } = batch;
+  const count = clients.length;
+  const label = month ? `${month} salary` : 'salary';
+
+  await safeGroupSend(`📊 *${label} details received* — generating ${count} invoice${count > 1 ? 's' : ''}...`);
+
+  const results = { sent: [], failed: [] };
+
+  for (const c of clients) {
+    const clientInfo   = invoice.getSalaryClient(c.rawClientName);
+    const clientBilled = clientInfo ? clientInfo.billed
+      : (c.rawClientName.match(/^(mr|ms|mrs|dr)\./i) ? c.rawClientName : `Ms. ${c.rawClientName}`);
+
+    try {
+      const result = await invoice.generateSalaryInvoicePDF({
+        clientBilled,
+        clientAddress : clientInfo ? clientInfo.address : '',
+        clientPhone   : clientInfo ? clientInfo.phone   : '',
+        month,
+        items: c.items,
+      });
+
+      const media   = MessageMedia.fromFilePath(result.path);
+      const caption = `Salary Invoice No. ${result.invoiceNo} — ${clientBilled}${month ? ' | ' + month : ''}`;
+      await safeGroupSend(media, { caption });
+
+      results.sent.push(clientBilled);
+      console.log(`✅ Salary invoice #${result.invoiceNo} sent for ${clientBilled}`);
+
+      // Small gap between sends
+      await new Promise(r => setTimeout(r, 1500));
+
+    } catch (err) {
+      console.error(`❌ Salary invoice failed for ${clientBilled}:`, err.message);
+      results.failed.push(clientBilled);
+    }
+  }
+
+  if (results.failed.length) {
+    await safeGroupSend(`⚠️ Could not generate invoice for: ${results.failed.join(', ')}`);
+  }
 }
 
 // ─── Process Client Entry ──────────────────────────────────────
