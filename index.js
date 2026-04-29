@@ -141,6 +141,10 @@ const client = new Client({
       '--mute-audio',
       '--safebrowsing-disable-auto-update',
       '--disable-web-resources',
+      '--disable-features=TranslateUI,BlinkGenPropertyTrees,AudioServiceOutOfProcess',
+      '--disable-ipc-flooding-protection',
+      '--js-flags=--max-old-space-size=192',  // Cap Chrome V8 heap to 192 MB
+      '--single-process',                      // Merge all Chrome processes → ~600 MB saved
     ],
   },
 });
