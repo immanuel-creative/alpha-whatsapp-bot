@@ -10,6 +10,7 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode   = require('qrcode-terminal');
 const cron     = require('node-cron');
 const express  = require('express');
+const compression = require('compression');
 const path     = require('path');
 const fs       = require('fs');
 const os       = require('os');
@@ -691,6 +692,7 @@ function getLocalIP() {
 
 function startDashboard() {
   const app = express();
+  app.use(compression());           // gzip all responses — saves bandwidth
   app.use(express.json());
 
   // ── CORS — allow Netlify send-tool to call bot API ──

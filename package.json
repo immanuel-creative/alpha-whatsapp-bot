@@ -14,7 +14,8 @@
     "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.23.0"
+    "whatsapp-web.js": "^1.23.0",
+    "compression": "^1.7.4"
   },
   "engines": {
     "node": ">=18.0.0"
