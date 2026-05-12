@@ -3,3 +3,11 @@
 node_modules/
 *.log
 .DS_Store
+.wwebjs_cache/
+*.bak
+*.tmp
+*.tmp2
+*.backup
+.fuse_hidden*
+alpha-android-project.zip
+alpha-app/

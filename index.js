@@ -333,6 +333,19 @@ client.on('message', async (message) => {
   }
 });
 
+// Also catch messages sent FROM this account (e.g. typed on linked phone)
+client.on('message_create', async (message) => {
+  if (!botReady || !message.fromMe) return;
+  try {
+    const chat = await message.getChat();
+    if (groupChat && chat.id._serialized === groupChat.id._serialized) {
+      await handleGroupMessage(message, 'Manny');
+    }
+  } catch (err) {
+    console.error('message_create error:', err.message);
+  }
+});
+
 // ─── Group Message Handler ─────────────────────────────────────
 
 async function handleGroupMessage(message, senderName) {
