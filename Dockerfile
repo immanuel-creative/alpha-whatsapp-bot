@@ -52,7 +52,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable \
     WWEBJS_AUTH_PATH=/app/data \
     NODE_ENV=production \
-    NODE_OPTIONS="--max-old-space-size=512"
+    NODE_OPTIONS="--max-old-space-size=256"
 
 WORKDIR /app
 
@@ -72,7 +72,7 @@ RUN mkdir -p /app/data_seed && \
     (cp data/invoiced-messages.json /app/data_seed/ 2>/dev/null || echo "No invoiced-messages.json found") && \
     (cp data/salary-clients.json /app/data_seed/ 2>/dev/null || echo "No salary-clients.json found")
 
-EXPOSE 3000
+EXPOSE 10000
 
 # HEALTHCHECK REMOVED - Railway will check TCP connectivity on port 3000 instead
 # This is more reliable during WhatsApp initialization which can timeout HTTP requests

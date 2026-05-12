@@ -449,7 +449,7 @@ async function generateInvoicePDF(invoiceData) {
   const puppeteer = require('puppeteer');
   const browser   = await puppeteer.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-web-security'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-web-security', '--disable-dev-shm-usage', '--single-process', '--no-zygote', '--disable-extensions', '--js-flags=--max-old-space-size=128'],
   });
 
   try {
@@ -785,7 +785,7 @@ async function generateSalaryInvoicePDF(invoiceData) {
   const puppeteer = require('puppeteer');
   const browser   = await puppeteer.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-web-security'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-web-security', '--disable-dev-shm-usage', '--single-process', '--no-zygote', '--disable-extensions', '--js-flags=--max-old-space-size=128'],
   });
 
   try {
