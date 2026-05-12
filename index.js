@@ -692,12 +692,27 @@ function getLocalIP() {
 function startDashboard() {
   const app = express();
   app.use(express.json());
+
+  // ── CORS — allow Netlify send-tool to call bot API ──
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+
   app.use(express.static(path.join(__dirname, 'public')));
 
-  // ── Root route (for Railway health checks) ──
+  // ── Root route (for Render health checks) ──
   app.get('/', (req, res) => {
     console.log('[HTTP] GET / - health check');
     res.status(200).json({ alive: true, timestamp: new Date().toISOString() });
+  });
+
+  // ── Status endpoint for Netlify send-tool ──
+  app.get('/api/status', (req, res) => {
+    res.json({ online: true, botReady, uptime: process.uptime() });
   });
 
   // ── Health endpoint ──
